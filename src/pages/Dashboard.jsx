@@ -28,7 +28,7 @@ const Dashboard = () => {
       
       const [overviewRes, paymentsRes, studentsRes, classRes, feeStructuresRes, schoolClassesRes] = await Promise.all([
         api.get('/main/dashboard/overview/'),
-        api.get('/main/dashboard/recent-payments/'),
+        api.get('/main/dashboard/recent-payments-grouped/'),
         api.get('/main/dashboard/outstanding-students/'),
         api.get('/main/dashboard/class-summary/'),
         api.get('/main/fee_structure/'),  // Use the new endpoint name
