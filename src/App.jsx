@@ -9,6 +9,7 @@ import PaymentManagement from './pages/PaymentManagement'
 import StudentsPage from './pages/StudentsPage';
 import Login from './pages/Login';
 import Settings from './pages/Settings';
+import ClassesPage from './pages/ClassesPage';
 
 
 
@@ -103,6 +104,15 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <Reports />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
+
+            <Route path="/classes" element={
+              <ProtectedRoute>
+                <Layout>
+                  <ClassesPage />
                 </Layout>
               </ProtectedRoute>
             } />

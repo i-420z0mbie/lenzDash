@@ -1,9 +1,9 @@
-
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   ChartBarIcon, 
-  UserGroupIcon, 
+  UserGroupIcon,
+  AcademicCapIcon,
   CurrencyDollarIcon,
   CreditCardIcon,
   ChartPieIcon,
@@ -14,6 +14,7 @@ import {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: ChartBarIcon },
   { name: 'Students', href: '/students', icon: UserGroupIcon },
+  { name: 'Classes', href: '/classes', icon: AcademicCapIcon },
   { name: 'Fee Management', href: '/fees', icon: CurrencyDollarIcon },
   { name: 'Payments', href: '/payments', icon: CreditCardIcon },
   { name: 'Settings', href: '/settings', icon: CogIcon },
@@ -86,7 +87,7 @@ const Sidebar = ({ open, setOpen }) => {
               <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mr-3">
                 <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-blue-700 rounded" />
               </div>
-              <span className="text-white font-bold text-xl">LenzPay</span>
+              <span className="text-white font-bold text-xl">LenzDashboard</span>
             </div>
           </div>
           

@@ -7,11 +7,11 @@ const Modal = ({ title, children, onClose }) => {
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black bg-opacity-50" 
+      <div
+        className="absolute inset-0 bg-black bg-opacity-50"
         onClick={onClose}
       />
-      
+
       {/* Modal */}
       <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto shadow-xl">
         <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
@@ -37,8 +37,7 @@ const Modal = ({ title, children, onClose }) => {
 const QuickActions = () => {
   const [activeModal, setActiveModal] = useState(null);
   const [schoolClasses, setSchoolClasses] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [feeStructures, setFeeStructures] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // Form states
@@ -58,22 +57,21 @@ const QuickActions = () => {
     items: [{ name: '', amount: '' }]
   });
 
-  const [paymentForm, setPaymentForm] = useState({
-    student: null,
-    amount: '',
-    description: '',
-    fee_item: ''
+  const [feeItemForm, setFeeItemForm] = useState({
+    fee_structure: '',
+    name: '',
+    amount: ''
+  });
+
+  // New: Class form
+  const [classForm, setClassForm] = useState({
+    name: ''
   });
 
   useEffect(() => {
     fetchSchoolClasses();
+    fetchFeeStructures();
   }, []);
-
-  useEffect(() => {
-    if (searchTerm.length > 2) {
-      searchStudents();
-    }
-  }, [searchTerm]);
 
   const fetchSchoolClasses = async () => {
     try {
@@ -88,15 +86,17 @@ const QuickActions = () => {
     }
   };
 
-  const searchStudents = async () => {
+  const fetchFeeStructures = async () => {
     try {
-      const response = await api.get(`/main/students/?search=${encodeURIComponent(searchTerm)}`);
-      setStudents(response.data);
+      const response = await api.get('/main/fee_structure/');
+      setFeeStructures(response.data);
     } catch (error) {
-      console.error('Error searching students:', error);
+      console.error('Error fetching fee structures:', error);
+      setFeeStructures([]);
     }
   };
 
+  // -------- Handlers --------
   const handleAddStudent = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -128,7 +128,9 @@ const QuickActions = () => {
         school_class: feeStructureForm.school_class,
         academic_year: feeStructureForm.academic_year,
         term: feeStructureForm.term,
-        items: feeStructureForm.items.filter(item => item.name && item.amount)
+        items: feeStructureForm.items
+          .filter(item => item.name && item.amount)
+          .map(item => ({ name: item.name, amount: item.amount }))
       };
 
       await api.post('/main/fee_structure/', feeStructureData);
@@ -140,74 +142,111 @@ const QuickActions = () => {
         term: 'Term 1',
         items: [{ name: '', amount: '' }]
       });
+
+      await fetchFeeStructures();
     } catch (error) {
       console.error('Error creating fee structure:', error);
-      alert('Error creating fee structure. Please try again.');
+      const msg = error.response?.data ? JSON.stringify(error.response.data) : 'Please try again.';
+      alert(`Error creating fee structure: ${msg}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRecordPayment = async (e) => {
+  const handleAddFeeItem = async (e) => {
     e.preventDefault();
-    if (!paymentForm.student || !paymentForm.amount) {
-      alert('Please select a student and enter amount');
+    if (!feeItemForm.fee_structure) {
+      alert('Please select a fee structure first.');
+      return;
+    }
+    if (!feeItemForm.name || !feeItemForm.amount) {
+      alert('Please provide a name and an amount for the fee item.');
       return;
     }
 
     setLoading(true);
     try {
-      const paymentData = {
-        student: paymentForm.student.id,
-        amount: paymentForm.amount,
-        description: paymentForm.description,
-        status: 'successful',
-        is_verified: true
+      const payload = {
+        fee_structure: feeItemForm.fee_structure,
+        name: feeItemForm.name,
+        amount: feeItemForm.amount
       };
 
-      await api.post('/main/payments/manual/', paymentData);
-      alert('Payment recorded successfully!');
+      await api.post('/main/fee_item/', payload);
+      alert('Fee item added successfully!');
       setActiveModal(null);
-      setPaymentForm({
-        student: null,
-        amount: '',
-        description: '',
-        fee_item: ''
-      });
-      setSearchTerm('');
-      setStudents([]);
+      setFeeItemForm({ fee_structure: '', name: '', amount: '' });
+
+      await fetchFeeStructures();
     } catch (error) {
-      console.error('Error recording payment:', error);
-      alert('Error recording payment. Please try again.');
+      console.error('Error adding fee item:', error);
+      const msg = error.response?.data ? JSON.stringify(error.response.data) : 'Please try again.';
+      alert(`Error adding fee item: ${msg}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const addFeeItem = () => {
+  // New: Add Class handler
+  const handleAddClass = async (e) => {
+    e.preventDefault();
+    if (!classForm.name.trim()) {
+      alert('Please enter a class name');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await api.post('/main/school_class/', { name: classForm.name });
+      alert('Class added successfully!');
+      setActiveModal(null);
+      setClassForm({ name: '' });
+      
+      // Refresh the classes list
+      await fetchSchoolClasses();
+    } catch (error) {
+      console.error('Error adding class:', error);
+      const msg = error.response?.data ? JSON.stringify(error.response.data) : 'Please try again.';
+      alert(`Error adding class: ${msg}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // FeeStructure items helpers for creation modal
+  const addFeeItemField = () => {
     setFeeStructureForm(prev => ({
       ...prev,
       items: [...prev.items, { name: '', amount: '' }]
     }));
   };
 
-  const updateFeeItem = (index, field, value) => {
-    const updatedItems = [...feeStructureForm.items];
-    updatedItems[index][field] = value;
-    setFeeStructureForm(prev => ({ ...prev, items: updatedItems }));
+  const updateFeeItemField = (index, field, value) => {
+    const updated = [...feeStructureForm.items];
+    updated[index][field] = value;
+    setFeeStructureForm(prev => ({ ...prev, items: updated }));
   };
 
-  const removeFeeItem = (index) => {
+  const removeFeeItemField = (index) => {
     if (feeStructureForm.items.length > 1) {
-      const updatedItems = feeStructureForm.items.filter((_, i) => i !== index);
-      setFeeStructureForm(prev => ({ ...prev, items: updatedItems }));
+      const updated = feeStructureForm.items.filter((_, i) => i !== index);
+      setFeeStructureForm(prev => ({ ...prev, items: updated }));
     }
+  };
+
+  // Helper to render a friendly label for a fee structure item
+  const feeStructureLabel = (fs) => {
+    if (!fs) return '';
+    const sc = fs.school_class?.name || (fs.school_class && fs.school_class.name) || `Class ${fs.school_class}`;
+    const year = fs.academic_year || fs.academic_year;
+    const term = fs.term || fs.term;
+    return `${sc} — ${year} ${term}`;
   };
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-      
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {/* Add Single Student */}
         <button
@@ -231,6 +270,27 @@ const QuickActions = () => {
           <span className="text-sm font-medium text-gray-700 group-hover:text-purple-900">Add Fee Structure & Items</span>
         </button>
 
+        {/* Add Fee Item */}
+        <button
+          onClick={() => setActiveModal('add-fee-item')}
+          className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-green-500 hover:bg-green-50 transition-all duration-200 group"
+        >
+          <svg className="w-8 h-8 text-gray-400 group-hover:text-green-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+          <span className="text-sm font-medium text-gray-700 group-hover:text-green-900">Add Fee Item</span>
+        </button>
+
+        {/* Add Class (replaced Record Payment) */}
+        <button
+          onClick={() => setActiveModal('add-class')}
+          className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-orange-500 hover:bg-orange-50 transition-all duration-200 group"
+        >
+          <svg className="w-8 h-8 text-gray-400 group-hover:text-orange-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+          <span className="text-sm font-medium text-gray-700 group-hover:text-orange-900">Add Class</span>
+        </button>
       </div>
 
       {/* Add Student Modal */}
@@ -247,7 +307,7 @@ const QuickActions = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
               <input
@@ -373,13 +433,13 @@ const QuickActions = () => {
                 <label className="block text-sm font-medium text-gray-700">Fee Items</label>
                 <button
                   type="button"
-                  onClick={addFeeItem}
+                  onClick={addFeeItemField}
                   className="text-sm text-purple-600 hover:text-purple-700 font-medium"
                 >
                   + Add Item
                 </button>
               </div>
-              
+
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {feeStructureForm.items.map((item, index) => (
                   <div key={index} className="flex space-x-2 items-start">
@@ -387,20 +447,20 @@ const QuickActions = () => {
                       type="text"
                       placeholder="Item name"
                       value={item.name}
-                      onChange={(e) => updateFeeItem(index, 'name', e.target.value)}
+                      onChange={(e) => updateFeeItemField(index, 'name', e.target.value)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                     />
                     <input
                       type="number"
                       placeholder="Amount"
                       value={item.amount}
-                      onChange={(e) => updateFeeItem(index, 'amount', e.target.value)}
+                      onChange={(e) => updateFeeItemField(index, 'amount', e.target.value)}
                       className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                     />
                     {feeStructureForm.items.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => removeFeeItem(index)}
+                        onClick={() => removeFeeItemField(index)}
                         className="px-2 py-2 text-red-600 hover:text-red-700"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -433,90 +493,102 @@ const QuickActions = () => {
         </Modal>
       )}
 
-      {/* Record Payment Modal */}
-      {activeModal === 'record-payment' && (
-        <Modal title="Record Manual Payment" onClose={() => setActiveModal(null)}>
-          <form onSubmit={handleRecordPayment} className="space-y-4">
+      {/* Add Fee Item Modal */}
+      {activeModal === 'add-fee-item' && (
+        <Modal title="Add Fee Item" onClose={() => setActiveModal(null)}>
+          <form onSubmit={handleAddFeeItem} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Search Student *</label>
-              <input
-                type="text"
-                placeholder="Type student name or ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              />
-              
-              {students.length > 0 && (
-                <div className="mt-2 border border-gray-200 rounded-lg max-h-32 overflow-y-auto">
-                  {students.map(student => (
-                    <button
-                      key={student.id}
-                      type="button"
-                      onClick={() => {
-                        setPaymentForm(prev => ({ ...prev, student }));
-                        setStudents([]);
-                        setSearchTerm(`${student.first_name} ${student.last_name} (${student.student_id})`);
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-                    >
-                      <div className="font-medium text-gray-900">
-                        {student.first_name} {student.last_name}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {student.student_id} • {student.school_class?.name}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fee Structure *</label>
+              <select
+                required
+                value={feeItemForm.fee_structure}
+                onChange={(e) => setFeeItemForm(prev => ({ ...prev, fee_structure: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              >
+                <option value="">Select Structure</option>
+                {feeStructures.map(fs => (
+                  <option key={fs.id} value={fs.id}>
+                    {feeStructureLabel(fs)}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {paymentForm.student && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={paymentForm.amount}
-                    onChange={(e) => setPaymentForm(prev => ({ ...prev, amount: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    placeholder="0.00"
-                  />
-                </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
+              <input
+                type="text"
+                required
+                value={feeItemForm.name}
+                onChange={(e) => setFeeItemForm(prev => ({ ...prev, name: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              />
+            </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                  <input
-                    type="text"
-                    value={paymentForm.description}
-                    onChange={(e) => setPaymentForm(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    placeholder="Payment description..."
-                  />
-                </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                value={feeItemForm.amount}
+                onChange={(e) => setFeeItemForm(prev => ({ ...prev, amount: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              />
+            </div>
 
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Student Information</h4>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <div>Name: {paymentForm.student.first_name} {paymentForm.student.last_name}</div>
-                    <div>ID: {paymentForm.student.student_id}</div>
-                    <div>Class: {paymentForm.student.school_class?.name}</div>
-                  </div>
-                </div>
-              </>
-            )}
+            <div className="flex space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+              >
+                {loading ? 'Adding...' : 'Add Item'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Add Class Modal (replaced Record Payment) */}
+      {activeModal === 'add-class' && (
+        <Modal title="Add New Class" onClose={() => setActiveModal(null)}>
+          <form onSubmit={handleAddClass} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Class Name *</label>
+              <input
+                type="text"
+                required
+                value={classForm.name}
+                onChange={(e) => setClassForm({ name: e.target.value })}
+                placeholder="e.g., Primary 1, Grade 2, Form 3"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                Enter the name of the class you want to create
+              </p>
+            </div>
+
+            <div className="bg-orange-50 rounded-lg p-3">
+              <h4 className="text-sm font-medium text-orange-800 mb-1">Note</h4>
+              <p className="text-sm text-orange-700">
+                The class will be automatically associated with your school. You can then assign students to this class and create fee structures for it.
+              </p>
+            </div>
 
             <div className="flex space-x-3 pt-4">
               <button
                 type="button"
                 onClick={() => {
                   setActiveModal(null);
-                  setPaymentForm({ student: null, amount: '', description: '', fee_item: '' });
-                  setSearchTerm('');
-                  setStudents([]);
+                  setClassForm({ name: '' });
                 }}
                 className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
@@ -524,10 +596,10 @@ const QuickActions = () => {
               </button>
               <button
                 type="submit"
-                disabled={loading || !paymentForm.student || !paymentForm.amount}
+                disabled={loading || !classForm.name.trim()}
                 className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50"
               >
-                {loading ? 'Recording...' : 'Record Payment'}
+                {loading ? 'Adding...' : 'Add Class'}
               </button>
             </div>
           </form>
