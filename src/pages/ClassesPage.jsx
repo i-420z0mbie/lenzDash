@@ -17,6 +17,10 @@ const ClassesPage = () => {
   const [showAddClassModal, setShowAddClassModal] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [addingClass, setAddingClass] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [classToDelete, setClassToDelete] = useState(null);
+  const [deletingClass, setDeletingClass] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
 
   useEffect(() => {
     fetchClasses();
@@ -143,6 +147,43 @@ const ClassesPage = () => {
     } finally {
       setAddingClass(false);
     }
+  };
+
+  const handleDeleteClass = async () => {
+    if (!classToDelete) return;
+
+    setDeletingClass(true);
+    try {
+      await api.delete(`/main/school_class/${classToDelete.id}/`);
+      alert('Class deleted successfully!');
+      
+      // If we're currently viewing the deleted class, go back to class list
+      if (selectedClass && selectedClass.id === classToDelete.id) {
+        handleBackToClasses();
+      }
+      
+      // Refresh the classes list
+      await fetchClasses();
+    } catch (error) {
+      console.error('Error deleting class:', error);
+      const msg = error.response?.data ? JSON.stringify(error.response.data) : 'Please try again.';
+      alert(`Error deleting class: ${msg}`);
+    } finally {
+      setDeletingClass(false);
+      setShowDeleteModal(false);
+      setShowDeleteConfirmModal(false);
+      setClassToDelete(null);
+    }
+  };
+
+  const openDeleteModal = (classItem) => {
+    setClassToDelete(classItem);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = () => {
+    setShowDeleteModal(false);
+    setShowDeleteConfirmModal(true);
   };
 
   if (loading) {
@@ -304,12 +345,152 @@ const ClassesPage = () => {
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowDeleteModal(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-xl">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+                Delete Class
+              </h3>
+              <p className="text-gray-600 text-center mb-6">
+                Are you sure you want to delete <span className="font-semibold">{classToDelete?.name}</span>? This action cannot be undone.
+              </p>
+              
+              {classToDelete?.total_students > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <span className="text-sm font-medium text-red-800">
+                      Warning: This class has {classToDelete?.total_students} student{classToDelete?.total_students !== 1 ? 's' : ''}. 
+                      Deleting it will remove all associated data.
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                >
+                  Delete Class
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Final Delete Confirmation Modal */}
+      {showDeleteConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowDeleteConfirmModal(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-xl">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+                Final Confirmation
+              </h3>
+              <p className="text-gray-600 text-center mb-6">
+                You are about to permanently delete <span className="font-semibold">{classToDelete?.name}</span>. This will remove:
+              </p>
+              
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <ul className="space-y-2 text-sm text-red-800">
+                  <li className="flex items-center">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    The class itself
+                  </li>
+                  {classToDelete?.total_students > 0 && (
+                    <>
+                      <li className="flex items-center">
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        All {classToDelete?.total_students} student{classToDelete?.total_students !== 1 ? 's' : ''}
+                      </li>
+                      <li className="flex items-center">
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        All fee records for these students
+                      </li>
+                    </>
+                  )}
+                  <li className="flex items-center">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    All payment history
+                  </li>
+                </ul>
+              </div>
+              
+              <p className="text-red-600 font-medium text-center mb-6">
+                This action cannot be undone. Are you absolutely sure?
+              </p>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirmModal(false);
+                    setClassToDelete(null);
+                  }}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  No, Keep Class
+                </button>
+                <button
+                  onClick={handleDeleteClass}
+                  disabled={deletingClass}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {deletingClass ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Deleting...
+                    </>
+                  ) : (
+                    'Yes, Delete Permanently'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!selectedClass ? (
         <ClassSelector 
           classes={classes} 
           onClassSelect={handleClassSelect}
           error={error}
           onAddClass={() => setShowAddClassModal(true)}
+          onDeleteClass={openDeleteModal}
         />
       ) : (
         <StudentDetails 
@@ -333,7 +514,7 @@ const ClassesPage = () => {
 };
 
 // Class Selector Component with Add Class Button
-const ClassSelector = ({ classes, onClassSelect, error, onAddClass }) => {
+const ClassSelector = ({ classes, onClassSelect, error, onAddClass, onDeleteClass }) => {
   if (error) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -392,62 +573,77 @@ const ClassSelector = ({ classes, onClassSelect, error, onAddClass }) => {
         {classes.map((classItem) => (
           <div
             key={classItem.id}
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => onClassSelect(classItem)}
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow relative group"
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">{classItem.name}</h3>
-              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
-                {classItem.total_students} students
-              </span>
-            </div>
+            {/* Delete Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteClass(classItem);
+              }}
+              className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200"
+              title="Delete Class"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
             
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Total Due</span>
-                <span className="text-sm font-semibold">GH₵{classItem.total_due.toFixed(2)}</span>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Total Paid</span>
-                <span className="text-sm font-semibold text-green-600">GH₵{classItem.total_paid.toFixed(2)}</span>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Balance</span>
-                <span className={`text-sm font-semibold ${
-                  classItem.total_balance > 0 ? 'text-red-600' : 'text-gray-900'
-                }`}>
-                  GH₵{classItem.total_balance.toFixed(2)}
+            <div onClick={() => onClassSelect(classItem)} className="cursor-pointer">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">{classItem.name}</h3>
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
+                  {classItem.total_students} students
                 </span>
               </div>
               
-              <div className="pt-2 border-t border-gray-200">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm text-gray-600">Collection Rate</span>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Total Due</span>
+                  <span className="text-sm font-semibold">GH₵{classItem.total_due.toFixed(2)}</span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Total Paid</span>
+                  <span className="text-sm font-semibold text-green-600">GH₵{classItem.total_paid.toFixed(2)}</span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Balance</span>
                   <span className={`text-sm font-semibold ${
-                    classItem.collection_rate >= 80 ? 'text-green-600' : 
-                    classItem.collection_rate >= 50 ? 'text-yellow-600' : 'text-red-600'
+                    classItem.total_balance > 0 ? 'text-red-600' : 'text-gray-900'
                   }`}>
-                    {classItem.collection_rate.toFixed(1)}%
+                    GH₵{classItem.total_balance.toFixed(2)}
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full ${
-                      classItem.collection_rate >= 80 ? 'bg-green-500' : 
-                      classItem.collection_rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                    }`}
-                    style={{ width: `${Math.min(classItem.collection_rate, 100)}%` }}
-                  ></div>
+                
+                <div className="pt-2 border-t border-gray-200">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm text-gray-600">Collection Rate</span>
+                    <span className={`text-sm font-semibold ${
+                      classItem.collection_rate >= 80 ? 'text-green-600' : 
+                      classItem.collection_rate >= 50 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {classItem.collection_rate.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full ${
+                        classItem.collection_rate >= 80 ? 'bg-green-500' : 
+                        classItem.collection_rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}
+                      style={{ width: `${Math.min(classItem.collection_rate, 100)}%` }}
+                    ></div>
+                  </div>
                 </div>
               </div>
-            </div>
-            
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                View Class Details
-              </button>
+              
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                  View Class Details
+                </button>
+              </div>
             </div>
           </div>
         ))}

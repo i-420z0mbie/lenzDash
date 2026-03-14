@@ -14,6 +14,10 @@ const StudentsPage = () => {
   const [expandedStudent, setExpandedStudent] = useState(null);
   const [viewMode, setViewMode] = useState('summary');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState(null);
+  const [deletingStudent, setDeletingStudent] = useState(false);
 
   useEffect(() => {
     fetchClasses();
@@ -118,6 +122,40 @@ const StudentsPage = () => {
     setSearchTerm('');
   };
 
+  const openDeleteModal = (student) => {
+    setStudentToDelete(student);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = () => {
+    setShowDeleteModal(false);
+    setShowDeleteConfirmModal(true);
+  };
+
+  const handleDeleteStudent = async () => {
+    if (!studentToDelete) return;
+
+    setDeletingStudent(true);
+    try {
+      await api.delete(`/main/students/${studentToDelete.id}/`);
+      alert('Student deleted successfully!');
+      
+      // Refresh the students list
+      if (selectedClass) {
+        await fetchStudentsByClass(selectedClass.id);
+      }
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      const msg = error.response?.data ? JSON.stringify(error.response.data) : 'Please try again.';
+      alert(`Error deleting student: ${msg}`);
+    } finally {
+      setDeletingStudent(false);
+      setShowDeleteModal(false);
+      setShowDeleteConfirmModal(false);
+      setStudentToDelete(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -201,6 +239,141 @@ const StudentsPage = () => {
         </div>
       </div>
 
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowDeleteModal(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-xl">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+                Delete Student
+              </h3>
+              <p className="text-gray-600 text-center mb-6">
+                Are you sure you want to delete <span className="font-semibold">{studentToDelete?.first_name} {studentToDelete?.last_name}</span>? This action cannot be undone.
+              </p>
+              
+              {studentToDelete?.student_fees?.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <span className="text-sm font-medium text-red-800">
+                      Warning: This student has {studentToDelete?.student_fees?.length} fee record{studentToDelete?.student_fees?.length !== 1 ? 's' : ''}. 
+                      Deleting them will remove all associated fee and payment data.
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                >
+                  Delete Student
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Final Delete Confirmation Modal */}
+      {showDeleteConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowDeleteConfirmModal(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-xl">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+                Final Confirmation
+              </h3>
+              <p className="text-gray-600 text-center mb-6">
+                You are about to permanently delete <span className="font-semibold">{studentToDelete?.first_name} {studentToDelete?.last_name}</span> (ID: {studentToDelete?.student_id}). This will remove:
+              </p>
+              
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <ul className="space-y-2 text-sm text-red-800">
+                  <li className="flex items-center">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    The student's personal information
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    All fee records associated with this student
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    All payment history for this student
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Student's enrollment records
+                  </li>
+                </ul>
+              </div>
+              
+              <p className="text-red-600 font-medium text-center mb-6">
+                This action cannot be undone. Are you absolutely sure?
+              </p>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirmModal(false);
+                    setStudentToDelete(null);
+                  }}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  No, Keep Student
+                </button>
+                <button
+                  onClick={handleDeleteStudent}
+                  disabled={deletingStudent}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {deletingStudent ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Deleting...
+                    </>
+                  ) : (
+                    'Yes, Delete Permanently'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!selectedClass ? (
         <ClassSelector 
           classes={classes} 
@@ -216,6 +389,7 @@ const StudentsPage = () => {
           viewMode={viewMode}
           expandedStudent={expandedStudent}
           onToggleExpansion={toggleStudentExpansion}
+          onDeleteStudent={openDeleteModal}
           onRefresh={() => fetchStudentsByClass(selectedClass.id)}
           getPaymentStatus={getPaymentStatus}
           getStatusColor={getStatusColor}
@@ -327,6 +501,7 @@ const StudentDetails = ({
   viewMode,
   expandedStudent,
   onToggleExpansion,
+  onDeleteStudent,
   onRefresh,
   getPaymentStatus,
   getStatusColor,
@@ -506,6 +681,7 @@ const StudentDetails = ({
                     viewMode={viewMode}
                     isExpanded={expandedStudent === student.id}
                     onToggleExpansion={onToggleExpansion}
+                    onDeleteStudent={onDeleteStudent}
                     getPaymentStatus={getPaymentStatus}
                     getStatusColor={getStatusColor}
                   />
@@ -549,8 +725,8 @@ const StudentDetails = ({
   );
 };
 
-// Individual Student Row Component with Expandable Fee Details
-const StudentRow = ({ student, viewMode, isExpanded, onToggleExpansion, getPaymentStatus, getStatusColor }) => {
+// Individual Student Row Component with Expandable Fee Details and Delete Button
+const StudentRow = ({ student, viewMode, isExpanded, onToggleExpansion, onDeleteStudent, getPaymentStatus, getStatusColor }) => {
   const status = getPaymentStatus(student);
   const statusColor = getStatusColor(status);
   
@@ -631,29 +807,40 @@ const StudentRow = ({ student, viewMode, isExpanded, onToggleExpansion, getPayme
           </span>
         </td>
 
-        {/* View Details Button */}
-        <td className="px-6 py-4 whitespace-nowrap align-middle font-medium">
-          <button
-            onClick={() => onToggleExpansion(student.id)}
-            className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
-          >
-            <span>{isExpanded ? 'Hide Details' : 'View Details'}</span>
-            <svg
-              className={`w-4 h-4 transform transition-transform ${
-                isExpanded ? 'rotate-180' : ''
-              }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        {/* Actions */}
+        <td className="px-6 py-4 whitespace-nowrap align-middle">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => onToggleExpansion(student.id)}
+              className="text-blue-600 hover:text-blue-900 flex items-center space-x-1 font-medium"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </button>
+              <span>{isExpanded ? 'Hide' : 'View'}</span>
+              <svg
+                className={`w-4 h-4 transform transition-transform ${
+                  isExpanded ? 'rotate-180' : ''
+                }`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </button>
+            <button
+              onClick={() => onDeleteStudent(student)}
+              className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded transition-colors"
+              title="Delete Student"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
         </td>
       </tr>
 
