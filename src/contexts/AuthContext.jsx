@@ -39,23 +39,25 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
+      const response = await api.post('/main/api/token/', credentials);
+      const { access, refresh } = response.data || {};
 
-      const response = await api.post('main/api/token/', credentials); 
-      const { access, refresh } = response.data;
+      if (!access || !refresh) {
+        return { success: false, error: 'Invalid username or password' };
+      }
 
       localStorage.setItem('access_token', access);
       localStorage.setItem('refresh_token', refresh);
-
-
       api.defaults.headers.common.Authorization = `Bearer ${access}`;
-
-
       setUser({ username: credentials.username });
 
       return { success: true };
     } catch (error) {
+      const serverMessage =
+        error.response?.data?.detail ||
+        error.response?.data?.non_field_errors?.[0] ||
+        'Invalid username or password';
 
-      const serverMessage = error.response?.data?.detail || error.response?.data || 'Login failed';
       return { success: false, error: serverMessage };
     }
   };

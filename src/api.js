@@ -34,4 +34,25 @@ api.interceptors.response.use(
   }
 );
 
+export const getCurrentSchoolId = async () => {
+  try {
+    // Option 1: from user profile endpoint
+    const profile = await api.get('/main/user-profile/');
+    if (profile.data.school_id) return profile.data.school_id;
+  } catch (e) { console.warn('Profile endpoint failed', e); }
+
+  try {
+    // Option 2: fallback – get first class's school
+    const classes = await api.get('/main/class-overview/');
+    if (classes.data.length > 0 && classes.data[0].school) {
+      return classes.data[0].school;
+    }
+  } catch (e) { console.warn('Classes endpoint failed', e); }
+
+  return null;
+};
+
+
+
+
 export default api;

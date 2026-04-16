@@ -1,4 +1,3 @@
-// src/components/payments/PaymentForm.jsx
 import React, { useState, useEffect } from 'react';
 import api from '../../api';
 
@@ -16,25 +15,25 @@ const PaymentForm = ({ onClose, onSubmit }) => {
   const [error, setError] = useState('');
   const [paymentStep, setPaymentStep] = useState('form');
 
-  // Fetch students
+  // Fetch students – the backend already filters by school
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        const studentsRes = await api.get('/main/students/');
-        setStudents(studentsRes.data);
+        const response = await api.get('/main/students/');
+        setStudents(response.data);
       } catch (error) {
         console.error('Error fetching students:', error);
+        setError('Failed to load students. Please refresh the page.');
       }
     };
     fetchStudents();
   }, []);
 
-  // Fetch unpaid student fees when student is selected
+  // Fetch unpaid fees for the selected student
   useEffect(() => {
     const fetchStudentFees = async () => {
       if (formData.student) {
         try {
-          // Get unpaid fees for this specific student
           const feesRes = await api.get(`/main/student_fee/?student=${formData.student}&balance__gt=0`);
           setStudentFees(feesRes.data);
         } catch (error) {
@@ -45,29 +44,22 @@ const PaymentForm = ({ onClose, onSubmit }) => {
         setStudentFees([]);
       }
     };
-
     fetchStudentFees();
   }, [formData.student]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Reset student_fee when student changes
     if (name === 'student') {
       setFormData(prev => ({ ...prev, student_fee: '', amount: '' }));
     }
   };
 
-  // Auto-fill amount when fee item is selected
   useEffect(() => {
     if (formData.student_fee) {
       const selectedFee = studentFees.find(fee => fee.id === parseInt(formData.student_fee));
       if (selectedFee && selectedFee.balance > 0) {
-        setFormData(prev => ({ 
-          ...prev, 
-          amount: selectedFee.balance 
-        }));
+        setFormData(prev => ({ ...prev, amount: selectedFee.balance }));
       }
     }
   }, [formData.student_fee, studentFees]);
@@ -77,22 +69,18 @@ const PaymentForm = ({ onClose, onSubmit }) => {
     setLoading(true);
     setError('');
 
-    // Validate amount
     if (parseFloat(formData.amount) <= 0) {
       setError('Amount must be greater than 0');
       setLoading(false);
       return;
     }
 
-    // Prepare the data for API
     const submitData = {
       student: formData.student,
       amount: formData.amount,
       status: formData.status,
       is_verified: formData.is_verified
     };
-
-    // Only include student_fee if it's selected
     if (formData.student_fee) {
       submitData.student_fee = formData.student_fee;
     }
@@ -103,11 +91,9 @@ const PaymentForm = ({ onClose, onSubmit }) => {
         setPaymentStep('success');
       } else {
         setError(result.error.detail || result.error.message || 'Failed to create payment');
-        setPaymentStep('error');
       }
-    } catch (error) {
+    } catch (err) {
       setError('An unexpected error occurred');
-      setPaymentStep('error');
     } finally {
       setLoading(false);
     }
@@ -145,20 +131,15 @@ const PaymentForm = ({ onClose, onSubmit }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">Record Manual Payment</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -171,28 +152,24 @@ const PaymentForm = ({ onClose, onSubmit }) => {
             </div>
           )}
 
-          {/* Student Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Student *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Student *</label>
             <select
               name="student"
               value={formData.student}
               onChange={handleChange}
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select Student</option>
-              {students.map(student => (
-                <option key={student.id} value={student.id}>
-                  {student.first_name} {student.last_name} - {student.admission_number}
+              {students.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.first_name} {s.last_name} - {s.admission_number || s.student_id}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Student Information */}
           {selectedStudent && (
             <div className="bg-gray-50 rounded-lg p-4">
               <h4 className="font-medium text-gray-900 mb-2">Student Information</h4>
@@ -200,23 +177,20 @@ const PaymentForm = ({ onClose, onSubmit }) => {
                 <div className="text-gray-600">Class:</div>
                 <div className="text-gray-900">{selectedStudent.school_class?.name || 'N/A'}</div>
                 <div className="text-gray-600">Admission No:</div>
-                <div className="text-gray-900">{selectedStudent.admission_number}</div>
+                <div className="text-gray-900">{selectedStudent.admission_number || selectedStudent.student_id}</div>
               </div>
             </div>
           )}
 
-          {/* Fee Item Selection - Only show if student is selected */}
           {formData.student && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fee Item *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fee Item *</label>
               <select
                 name="student_fee"
                 value={formData.student_fee}
                 onChange={handleChange}
                 required
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select Fee Item to Pay</option>
                 {studentFees.length > 0 ? (
@@ -229,17 +203,12 @@ const PaymentForm = ({ onClose, onSubmit }) => {
                   <option value="" disabled>No unpaid fees found for this student</option>
                 )}
               </select>
-              <p className="text-sm text-gray-500 mt-1">
-                You must select a specific fee item to apply this payment to.
-              </p>
+              <p className="text-sm text-gray-500 mt-1">You must select a specific fee item.</p>
             </div>
           )}
 
-          {/* Amount */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Amount *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
             <input
               type="number"
               name="amount"
@@ -249,25 +218,20 @@ const PaymentForm = ({ onClose, onSubmit }) => {
               min="0"
               step="0.01"
               placeholder="0.00"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
             />
             {selectedFee && (
-              <p className="text-sm text-gray-500 mt-1">
-                Suggested amount: GH₵{selectedFee.balance || 0} (remaining balance)
-              </p>
+              <p className="text-sm text-gray-500 mt-1">Suggested amount: GH₵{selectedFee.balance || 0} (remaining balance)</p>
             )}
           </div>
 
-          {/* Payment Status */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Payment Status
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
             <select
               name="status"
               value={formData.status}
               onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
             >
               <option value="successful">Successful</option>
               <option value="pending">Pending</option>
@@ -275,37 +239,24 @@ const PaymentForm = ({ onClose, onSubmit }) => {
             </select>
           </div>
 
-          {/* Verification Status */}
           <div>
             <label className="flex items-center">
               <input
                 type="checkbox"
-                name="is_verified"
                 checked={formData.is_verified}
                 onChange={(e) => setFormData(prev => ({ ...prev, is_verified: e.target.checked }))}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="ml-2 text-sm text-gray-700">Mark as verified</span>
             </label>
-            <p className="text-sm text-gray-500 mt-1">
-              Verified payments are automatically applied to student fee balances.
-            </p>
+            <p className="text-sm text-gray-500 mt-1">Verified payments are automatically applied to student fee balances.</p>
           </div>
 
-          {/* Form Actions */}
           <div className="flex space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
+            <button type="submit" disabled={loading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
               {loading ? 'Recording Payment...' : 'Record Payment'}
             </button>
           </div>
