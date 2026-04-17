@@ -35,28 +35,13 @@ const Header = ({ setSidebarOpen }) => {
     setErrorMessage('');
     setSuccessMessage('');
 
-    console.log('Sending notification data:', notificationForm);
-
     try {
-      // Changed from '/main/push_notification/' to '/main/notifications/'
       const response = await api.post('/main/notifications/', notificationForm);
-      console.log('Notification sent successfully:', response.data);
-      
       setSuccessMessage('Notification sent successfully!');
-      setNotificationForm({
-        title: '',
-        message: ''
-      });
-      
-      setTimeout(() => {
-        setSuccessMessage('');
-      }, 3000);
+      setNotificationForm({ title: '', message: '' });
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
-      console.error('Error sending notification:', error);
-      console.error('Error response data:', error.response?.data);
-      
       let errorMsg = 'Failed to send notification. Please try again.';
-      
       if (error.response?.data) {
         if (typeof error.response.data === 'string') {
           errorMsg = error.response.data;
@@ -71,7 +56,6 @@ const Header = ({ setSidebarOpen }) => {
           errorMsg = fieldErrors || errorMsg;
         }
       }
-      
       setErrorMessage(errorMsg);
     } finally {
       setIsLoading(false);
@@ -79,10 +63,7 @@ const Header = ({ setSidebarOpen }) => {
   };
 
   const resetForm = () => {
-    setNotificationForm({
-      title: '',
-      message: ''
-    });
+    setNotificationForm({ title: '', message: '' });
     setErrorMessage('');
     setSuccessMessage('');
     setNotificationModalOpen(false);
@@ -90,87 +71,112 @@ const Header = ({ setSidebarOpen }) => {
 
   return (
     <>
-      <header className="flex-shrink-0 relative h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6">
-        {/* Mobile menu button */}
+      {/* Modern Header with glass effect */}
+      <header className="sticky top-0 z-30 flex-shrink-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm shadow-primary-50/20 flex items-center justify-between px-4 lg:px-6 transition-all duration-200">
+        {/* Mobile menu button - elegant ring effect */}
         <button
-          className="px-4 border-r border-gray-200 text-gray-400 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 lg:hidden"
+          className="lg:hidden p-2 -ml-2 rounded-xl text-primary-600 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all duration-200"
           onClick={() => setSidebarOpen(true)}
         >
-          <Bars3Icon className="h-6 w-6" />
+          <Bars3Icon className="h-5 w-5" />
         </button>
 
-        <div className="flex-1 flex justify-between lg:justify-end items-center">
-          {/* Notifications Button */}
+        {/* Right section - notifications & user */}
+        <div className="flex-1 flex justify-end items-center gap-3 lg:gap-4">
+          {/* Notifications Button with subtle glow */}
           <button 
             onClick={() => setNotificationModalOpen(true)}
-            className="flex-shrink-0 p-1 rounded-full text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition"
+            className="relative p-2 rounded-full text-gray-500 hover:text-primary-600 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all duration-200 group"
           >
-            <BellIcon className="h-6 w-6" />
+            <BellIcon className="h-5 w-5" />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary-500 rounded-full ring-2 ring-white group-hover:ring-primary-50"></span>
           </button>
 
-          {/* User info and logout */}
-          <div className="ml-4 flex items-center lg:ml-6 space-x-4">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">
+          {/* User profile card with gradient border */}
+          <div className="flex items-center gap-3 pl-2 border-l border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-primary-400 to-primary-600 blur-sm opacity-60"></div>
+                <div className="relative w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center shadow-md">
+                  <span className="text-white text-sm font-semibold">
                     {user?.username?.charAt(0).toUpperCase()}
                   </span>
                 </div>
               </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-700">{user?.username}</p>
-                <p className="text-xs font-medium text-gray-500 capitalize">{user?.role}</p>
+              <div className="hidden sm:block">
+                <p className="text-sm font-semibold text-gray-800 leading-tight">{user?.username}</p>
+                <p className="text-xs font-medium text-primary-600 capitalize">{user?.role}</p>
               </div>
             </div>
 
-            {/* Logout button */}
+            {/* Logout button - gradient outline style */}
             <button
               onClick={logout}
-              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md shadow-sm transition-all duration-200"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200/50 shadow-sm transition-all duration-200 hover:shadow hover:-translate-y-0.5"
             >
               <ArrowRightOnRectangleIcon className="h-4 w-4" />
-              Logout
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Notification Modal */}
+      {/* Modern Notification Modal - Glass morphism + animations */}
       {isNotificationModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-50 animate-fade-in">
+          {/* Backdrop with blur */}
+          <div 
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300" 
+            onClick={resetForm}
+          />
+          
+          {/* Modal panel */}
+          <div className="relative w-full max-w-md bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl shadow-primary-500/20 border border-white/20 animate-slide-up overflow-hidden">
+            {/* Decorative gradient top bar */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary-400 via-primary-500 to-primary-600"></div>
+            
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Send Notification
-              </h3>
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-xl bg-primary-50">
+                  <PaperAirplaneIcon className="h-4 w-4 text-primary-600" />
+                </div>
+                <h3 className="text-lg font-bold bg-gradient-to-r from-primary-700 to-primary-800 bg-clip-text text-transparent">
+                  Send Notification
+                </h3>
+              </div>
               <button
                 onClick={resetForm}
-                className="text-gray-400 hover:text-gray-600 transition"
+                className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all duration-200"
               >
-                <XMarkIcon className="h-6 w-6" />
+                <XMarkIcon className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Success/Error Messages */}
+            {/* Success/Error Messages with icons */}
             {successMessage && (
-              <div className="mx-6 mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
-                <p className="text-green-800 text-sm">{successMessage}</p>
+              <div className="mx-5 mt-4 p-3 bg-emerald-50/80 backdrop-blur-sm border border-emerald-200 rounded-xl animate-slide-up">
+                <p className="text-emerald-800 text-sm font-medium flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                  {successMessage}
+                </p>
               </div>
             )}
             
             {errorMessage && (
-              <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-red-800 text-sm font-medium">Error: {errorMessage}</p>
+              <div className="mx-5 mt-4 p-3 bg-red-50/80 backdrop-blur-sm border border-red-200 rounded-xl animate-slide-up">
+                <p className="text-red-800 text-sm font-medium flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                  {errorMessage}
+                </p>
               </div>
             )}
 
             {/* Modal Body */}
-            <form onSubmit={handleSendNotification} className="p-6 space-y-4">
+            <form onSubmit={handleSendNotification} className="p-5 space-y-5">
               <div>
-                <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                  Title *
+                <label htmlFor="title" className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Title <span className="text-primary-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -181,15 +187,18 @@ const Header = ({ setSidebarOpen }) => {
                   required
                   minLength={1}
                   maxLength={200}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter notification title"
+                  className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-all duration-200 outline-none"
+                  placeholder="e.g., Fee Reminder"
                 />
-                <p className="text-xs text-gray-500 mt-1">{notificationForm.title.length}/200 characters</p>
+                <p className="text-xs text-gray-400 mt-1.5 flex justify-between">
+                  <span>Notification title</span>
+                  <span className="font-mono">{notificationForm.title.length}/200</span>
+                </p>
               </div>
 
               <div>
-                <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
-                  Message *
+                <label htmlFor="message" className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Message <span className="text-primary-500">*</span>
                 </label>
                 <textarea
                   id="message"
@@ -199,24 +208,24 @@ const Header = ({ setSidebarOpen }) => {
                   required
                   minLength={1}
                   rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter notification message"
+                  className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-all duration-200 outline-none resize-none"
+                  placeholder="Write your message here..."
                 />
               </div>
 
-              {/* Modal Footer */}
-              <div className="flex justify-end space-x-3 pt-4">
+              {/* Modal Footer with modern buttons */}
+              <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100/80 rounded-xl hover:bg-gray-200/80 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading || !notificationForm.title.trim() || !notificationForm.message.trim()}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl shadow-md shadow-primary-500/25 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                 >
                   {isLoading ? (
                     <>
