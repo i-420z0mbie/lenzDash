@@ -1,5 +1,6 @@
 // src/components/payments/PaymentList.jsx
 import React from 'react';
+import ReceiptActions from './ReceiptActions';  // <-- ADD THIS IMPORT
 
 const PaymentList = ({ payments, loading, onRefresh }) => {
   const getStatusBadge = (status) => {
@@ -9,7 +10,6 @@ const PaymentList = ({ payments, loading, onRefresh }) => {
       failed: { color: 'bg-red-100 text-red-800', label: 'Failed' },
       refunded: { color: 'bg-gray-100 text-gray-800', label: 'Refunded' }
     };
-
     const config = statusConfig[status] || statusConfig.pending;
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
@@ -42,7 +42,6 @@ const PaymentList = ({ payments, loading, onRefresh }) => {
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         <h3 className="text-lg font-medium text-gray-900">
           Payment Records ({payments.length})
@@ -58,38 +57,24 @@ const PaymentList = ({ payments, loading, onRefresh }) => {
         </button>
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Reference
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Student
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Amount
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Verified
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Date Paid
-              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verified</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Paid</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receipts</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {payments.map((payment) => (
               <tr key={payment.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">
-                    {payment.payment_reference}
-                  </div>
+                  <div className="text-sm font-medium text-gray-900">{payment.payment_reference}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-900">{payment.student_name2}, {payment.student_name}</div>
@@ -102,14 +87,13 @@ const PaymentList = ({ payments, loading, onRefresh }) => {
                     GH₵{parseFloat(payment.amount).toLocaleString()}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {getStatusBadge(payment.status)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {getVerificationBadge(payment.is_verified)}
-                </td>
+                <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(payment.status)}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{getVerificationBadge(payment.is_verified)}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {new Date(payment.date_paid).toLocaleDateString()}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <ReceiptActions payment={payment} />
                 </td>
               </tr>
             ))}
@@ -117,7 +101,6 @@ const PaymentList = ({ payments, loading, onRefresh }) => {
         </table>
       </div>
 
-      {/* Loading State */}
       {loading && (
         <div className="flex items-center justify-center p-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
