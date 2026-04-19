@@ -183,19 +183,43 @@ const Sidebar = ({ open, setOpen }) => {
 
           {/* Bottom status */}
           <div className="p-5 mt-auto border-t border-gray-100/80">
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary-50/50 to-blue-50/30 p-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary-100 to-blue-100 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse"></div>
-                </div>
-                <div className="text-xs font-medium text-gray-500">
-                  <span className="block text-primary-600 font-bold">System Online</span>
-                  <span className="text-[10px]">All services active</span>
-                </div>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-50/60 via-white/40 to-blue-50/40 p-4 sm:p-5 backdrop-blur-md">
+            
+            {/* Soft glow background */}
+            <div className="absolute -top-10 -right-10 w-24 h-24 bg-primary-200/30 rounded-full blur-3xl"></div>
+            <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-blue-200/20 rounded-full blur-3xl"></div>
+
+            <div className="relative flex items-center gap-3">
+              
+              {/* Status indicator */}
+              <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-gradient-to-tr from-primary-100 to-blue-100 flex items-center justify-center shadow-inner">
+                <div className="w-2.5 h-2.5 rounded-full bg-primary-500 animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.7)]"></div>
               </div>
-              <div className="absolute -bottom-6 -right-6 w-16 h-16 rounded-full bg-primary-200/30 blur-2xl"></div>
+
+              {/* Text content */}
+              <div className="flex flex-col leading-tight">
+                <span className="text-sm font-semibold text-primary-700 tracking-wide">
+                  System Online
+                </span>
+
+                <span className="text-[11px] sm:text-xs text-gray-500">
+                  All services powered by{' '}
+                  <span className="font-semibold bg-gradient-to-r from-primary-500 via-blue-500 to-primary-600 bg-clip-text text-transparent
+                                  transition-all duration-300
+                                  hover:drop-shadow-[0_0_6px_rgba(59,130,246,0.5)]
+                                  hover:brightness-110">
+                    BinaryLenz
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            {/* Subtle animated shimmer line */}
+            <div className="absolute inset-0 opacity-20 pointer-events-none">
+              <div className="w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent animate-[shimmer_4s_infinite]"></div>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </>

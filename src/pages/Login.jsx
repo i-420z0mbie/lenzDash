@@ -9,8 +9,12 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // ✅ Dynamic year
+  const currentYear = new Date().getFullYear();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -41,7 +45,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Background image with gradient overlay */}
+      {/* Background image */}
       <div 
         className="absolute inset-0 bg-cover bg-center"
         style={{
@@ -50,13 +54,14 @@ const Login = () => {
       />
       <div className="absolute inset-0 bg-gradient-to-br from-primary-700/80 via-primary-800/80 to-primary-900/80 animate-gradient" />
 
-      {/* Decorative floating circles */}
+      {/* Decorative circles */}
       <div className="absolute top-20 left-10 w-72 h-72 bg-primary-400/20 rounded-full blur-3xl animate-pulse-slow" />
       <div className="absolute bottom-20 right-10 w-96 h-96 bg-primary-600/20 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }} />
 
-      {/* Glassmorphic login card */}
+      {/* Card */}
       <div className="relative z-10 max-w-md w-full mx-4 p-6 sm:p-8 bg-white/10 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-primary-900/20 border border-white/20 animate-fade-in-up">
-        {/* Logo & Brand Section */}
+        
+        {/* Logo */}
         <div className="text-center">
           <div className="relative inline-block">
             <div className="absolute inset-0 bg-gradient-to-r from-primary-400 to-primary-600 rounded-2xl blur-xl opacity-60"></div>
@@ -68,15 +73,17 @@ const Login = () => {
               />
             </div>
           </div>
+
           <h2 className="mt-5 text-3xl font-extrabold bg-gradient-to-r from-white to-primary-200 bg-clip-text text-transparent">
             LenzPay
           </h2>
+
           <p className="mt-2 text-sm text-primary-100 font-medium tracking-wide">
             Premium School Fee Management System
           </p>
         </div>
 
-        {/* Login Form */}
+        {/* Form */}
         <form className="mt-8 space-y-5" onSubmit={handleSubmit} noValidate>
           {error && (
             <div className="bg-red-500/20 backdrop-blur-md border border-red-400/30 rounded-xl p-3 animate-shake">
@@ -84,13 +91,12 @@ const Login = () => {
             </div>
           )}
 
+          {/* Username */}
           <div>
-            <label htmlFor="username" className="block text-sm font-semibold text-primary-100 mb-1">
+            <label className="block text-sm font-semibold text-primary-100 mb-1">
               Username
             </label>
             <input
-              id="username"
-              name="username"
               type="text"
               value={credentials.username}
               onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
@@ -102,14 +108,13 @@ const Login = () => {
             />
           </div>
 
+          {/* Password */}
           <div>
-            <label htmlFor="password" className="block text-sm font-semibold text-primary-100 mb-1">
+            <label className="block text-sm font-semibold text-primary-100 mb-1">
               Password
             </label>
             <div className="mt-1 relative">
               <input
-                id="password"
-                name="password"
                 type={showPassword ? 'text' : 'password'}
                 value={credentials.password}
                 onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
@@ -134,6 +139,7 @@ const Login = () => {
             </div>
           </div>
 
+          {/* Button */}
           <button
             type="submit"
             disabled={loading}
@@ -155,11 +161,25 @@ const Login = () => {
           </button>
         </form>
 
-        <div className="mt-8 text-center">
-          <p className="text-primary-200 text-xs font-medium tracking-wider">
-            © 2025 LenzPay • Secure School Management
-          </p>
-        </div>
+        {/* Footer */}
+        <div className="mt-8 text-center space-y-1">
+        <p className="text-primary-200 text-xs font-medium tracking-wider">
+          © {currentYear} LenzPay • Secure School Management
+        </p>
+
+        <p className="text-[11px] text-primary-300/80">
+          Powered by{' '}
+          <span className="relative inline-block font-semibold tracking-wide 
+                          bg-gradient-to-r from-primary-200 via-white to-primary-300 
+                          bg-clip-text text-transparent
+                          transition-all duration-300
+                          hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]
+                          hover:brightness-125">
+            BinaryLenz
+          </span>
+        </p>
+      </div>
+
       </div>
     </div>
   );
