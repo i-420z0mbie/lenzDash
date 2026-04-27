@@ -25,9 +25,10 @@ const PaymentManagement = () => {
     page: 1,
     page_size: 20
   });
+  const isInitialMount = useRef(true);
 
-  // Fetch all students of this school (for filtering)
-  const fetchSchoolStudents = async () => {
+  // Fetch all students of this school (once)
+  const fetchSchoolStudents = useCallback(async () => {
     try {
       const response = await api.get('/main/students/');
       const nameSet = new Set(
@@ -40,13 +41,16 @@ const PaymentManagement = () => {
       setError('Unable to load student list.');
       return new Set();
     }
-  };
+  }, []);
 
-  const fetchPayments = async () => {
+  // Fetch payments based on server-side filters
+  const fetchPayments = useCallback(async (nameSetOverride) => {
     try {
       setLoading(true);
       let nameSet = schoolStudentFullNames;
-      if (nameSet.size === 0) {
+      if (nameSet.size === 0 && nameSetOverride) {
+        nameSet = nameSetOverride;
+      } else if (nameSet.size === 0) {
         nameSet = await fetchSchoolStudents();
       }
       if (nameSet.size === 0) {
@@ -57,14 +61,9 @@ const PaymentManagement = () => {
       }
 
       const params = new URLSearchParams();
-      Object.keys(filters).forEach(key => {
-        if (filters[key] && key !== 'student') {
-          params.append(key, filters[key]);
-        }
-      });
-      if (filters.student) {
-        params.append('student', filters.student);
-      }
+      if (filters.status) params.append('status', filters.status);
+      if (filters.date_from) params.append('date_from', filters.date_from);
+      if (filters.date_to) params.append('date_to', filters.date_to);
 
       const response = await api.get(`/main/payments/?${params}`);
       const allPayments = response.data.results || response.data;
@@ -73,23 +72,36 @@ const PaymentManagement = () => {
         return nameSet.has(fullName);
       });
       setPayments(schoolPayments);
-      setFilteredPayments(schoolPayments);
+      applyStudentFilter(schoolPayments, filters.student);
     } catch (error) {
       console.error('Error fetching payments:', error);
       setError('Failed to load payments. Please try again.');
     } finally {
       setLoading(false);
     }
+  }, [filters.status, filters.date_from, filters.date_to, schoolStudentFullNames, fetchSchoolStudents]);
+
+  const applyStudentFilter = (paymentsArray, studentQuery) => {
+    if (!studentQuery) {
+      setFilteredPayments(paymentsArray);
+    } else {
+      const lowerQuery = studentQuery.toLowerCase();
+      const filtered = paymentsArray.filter(p =>
+        `${p.student_name} ${p.student_name2}`.toLowerCase().includes(lowerQuery)
+      );
+      setFilteredPayments(filtered);
+    }
   };
 
-  const computeStatsFromPayments = (paymentsArray) => {
-    const totalCollected = paymentsArray
+  // Compute stats
+  useEffect(() => {
+    const totalCollected = payments
       .filter(p => p.status === 'successful')
       .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-    const pendingCount = paymentsArray.filter(p => p.status === 'pending').length;
-    const successfulCount = paymentsArray.filter(p => p.status === 'successful').length;
-    const failedCount = paymentsArray.filter(p => p.status === 'failed').length;
-    const refundedCount = paymentsArray.filter(p => p.status === 'refunded').length;
+    const pendingCount = payments.filter(p => p.status === 'pending').length;
+    const successfulCount = payments.filter(p => p.status === 'successful').length;
+    const failedCount = payments.filter(p => p.status === 'failed').length;
+    const refundedCount = payments.filter(p => p.status === 'refunded').length;
 
     setStats({
       total_collected: totalCollected,
@@ -98,37 +110,30 @@ const PaymentManagement = () => {
       failed_count: failedCount,
       refunded_count: refundedCount
     });
-  };
-
-  useEffect(() => {
-    const init = async () => {
-      await fetchSchoolStudents();
-      await fetchPayments();
-    };
-    init();
-  }, []);
-
-  useEffect(() => {
-    computeStatsFromPayments(payments);
   }, [payments]);
 
+  // Initial load (once)
   useEffect(() => {
-    if (schoolStudentFullNames.size > 0) {
-      fetchPayments();
-    }
-  }, [filters.status, filters.date_from, filters.date_to]);
+    const init = async () => {
+      const nameSet = await fetchSchoolStudents();
+      await fetchPayments(nameSet);
+    };
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Refetch when server-side filters change (skip first mount)
   useEffect(() => {
-    if (!payments.length) return;
-    if (!filters.student) {
-      setFilteredPayments(payments);
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
       return;
     }
-    const searchLower = filters.student.toLowerCase();
-    const filtered = payments.filter(p =>
-      `${p.student_name} ${p.student_name2}`.toLowerCase().includes(searchLower)
-    );
-    setFilteredPayments(filtered);
+    fetchPayments();
+  }, [filters.status, filters.date_from, filters.date_to, fetchPayments]);
+
+  // Client-side student filter
+  useEffect(() => {
+    applyStudentFilter(payments, filters.student);
   }, [filters.student, payments]);
 
   const handleCreateManualPayment = async (paymentData) => {
@@ -159,7 +164,7 @@ const PaymentManagement = () => {
   const start = (filters.page - 1) * pageSize;
   const paginatedPayments = filteredPayments.slice(start, start + pageSize);
 
-  if (loading && schoolStudentFullNames.size === 0) {
+  if (loading && schoolStudentFullNames.size === 0 && payments.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 animate-pulse">
         <div className="text-center">
@@ -208,50 +213,22 @@ const PaymentManagement = () => {
       )}
 
       <PaymentStats stats={stats} />
-
-      <PaymentFilters
-        filters={filters}
-        onFilterChange={handleFilterChange}
-        onClearFilters={() => setFilters({
-          status: '', student: '', date_from: '', date_to: '', page: 1, page_size: 20
-        })}
-      />
-
+      <PaymentFilters filters={filters} onFilterChange={handleFilterChange} onClearFilters={() => setFilters({ status: '', student: '', date_from: '', date_to: '', page: 1, page_size: 20 })} />
       <PaymentList payments={paginatedPayments} loading={loading} onRefresh={fetchPayments} />
 
       {filteredPayments.length > 0 && (
         <div className="flex items-center justify-between pt-2">
-          <button
-            onClick={() => handlePageChange(filters.page - 1)}
-            disabled={filters.page === 1}
-            className="px-3 py-1.5 text-xxs border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition"
-          >
-            Previous
-          </button>
-          <span className="text-xxs text-slate-500">
-            Page {filters.page} of {Math.ceil(filteredPayments.length / pageSize)}
-          </span>
-          <button
-            onClick={() => handlePageChange(filters.page + 1)}
-            disabled={start + pageSize >= filteredPayments.length}
-            className="px-3 py-1.5 text-xxs border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition"
-          >
-            Next
-          </button>
+          <button onClick={() => handlePageChange(filters.page - 1)} disabled={filters.page === 1} className="px-3 py-1.5 text-xxs border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition">Previous</button>
+          <span className="text-xxs text-slate-500">Page {filters.page} of {Math.ceil(filteredPayments.length / pageSize)}</span>
+          <button onClick={() => handlePageChange(filters.page + 1)} disabled={start + pageSize >= filteredPayments.length} className="px-3 py-1.5 text-xxs border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition">Next</button>
         </div>
       )}
 
-      {showPaymentForm && (
-        <PaymentForm
-          onClose={() => setShowPaymentForm(false)}
-          onSubmit={handleCreateManualPayment}
-        />
-      )}
+      {showPaymentForm && <PaymentForm onClose={() => setShowPaymentForm(false)} onSubmit={handleCreateManualPayment} />}
     </div>
   );
 };
 
-// ====================== PaymentStats ======================
 const PaymentStats = ({ stats }) => {
   const statCards = [
     { title: 'Total Collected', value: `GH₵${(stats.total_collected || 0).toLocaleString()}`, color: 'bg-emerald-50 text-emerald-700', icon: '💰' },
@@ -260,7 +237,6 @@ const PaymentStats = ({ stats }) => {
     { title: 'Failed', value: stats.failed_count || 0, color: 'bg-rose-50 text-rose-700', icon: '❌' },
     { title: 'Refunded', value: stats.refunded_count || 0, color: 'bg-purple-50 text-purple-700', icon: '↩️' }
   ];
-
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
       {statCards.map((stat, idx) => (
@@ -276,28 +252,16 @@ const PaymentStats = ({ stats }) => {
   );
 };
 
-// ====================== PaymentFilters ======================
 const PaymentFilters = ({ filters, onFilterChange, onClearFilters }) => {
   const [localFilters, setLocalFilters] = useState(filters);
-
-  const handleApplyFilters = () => {
-    onFilterChange(localFilters);
-  };
-
-  const handleChange = (key, value) => {
-    setLocalFilters(prev => ({ ...prev, [key]: value }));
-  };
-
+  const handleApplyFilters = () => onFilterChange(localFilters);
+  const handleChange = (key, value) => setLocalFilters(prev => ({ ...prev, [key]: value }));
   return (
     <div className="bg-white/70 backdrop-blur-sm border border-white/30 rounded-xl p-4 shadow-sm transition-all">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div>
           <label className="block text-xxs font-medium text-slate-600 mb-1">Status</label>
-          <select
-            value={localFilters.status}
-            onChange={(e) => handleChange('status', e.target.value)}
-            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xxs focus:ring-1 focus:ring-indigo-400"
-          >
+          <select value={localFilters.status} onChange={(e) => handleChange('status', e.target.value)} className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xxs focus:ring-1 focus:ring-indigo-400">
             <option value="">All Status</option>
             <option value="pending">Pending</option>
             <option value="successful">Successful</option>
@@ -307,31 +271,15 @@ const PaymentFilters = ({ filters, onFilterChange, onClearFilters }) => {
         </div>
         <div>
           <label className="block text-xxs font-medium text-slate-600 mb-1">Student</label>
-          <input
-            type="text"
-            value={localFilters.student}
-            onChange={(e) => handleChange('student', e.target.value)}
-            placeholder="Search student..."
-            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xxs focus:ring-1 focus:ring-indigo-400"
-          />
+          <input type="text" value={localFilters.student} onChange={(e) => handleChange('student', e.target.value)} placeholder="Search student..." className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xxs focus:ring-1 focus:ring-indigo-400" />
         </div>
         <div>
           <label className="block text-xxs font-medium text-slate-600 mb-1">From Date</label>
-          <input
-            type="date"
-            value={localFilters.date_from}
-            onChange={(e) => handleChange('date_from', e.target.value)}
-            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xxs focus:ring-1 focus:ring-indigo-400"
-          />
+          <input type="date" value={localFilters.date_from} onChange={(e) => handleChange('date_from', e.target.value)} className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xxs focus:ring-1 focus:ring-indigo-400" />
         </div>
         <div>
           <label className="block text-xxs font-medium text-slate-600 mb-1">To Date</label>
-          <input
-            type="date"
-            value={localFilters.date_to}
-            onChange={(e) => handleChange('date_to', e.target.value)}
-            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xxs focus:ring-1 focus:ring-indigo-400"
-          />
+          <input type="date" value={localFilters.date_to} onChange={(e) => handleChange('date_to', e.target.value)} className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xxs focus:ring-1 focus:ring-indigo-400" />
         </div>
       </div>
       <div className="flex justify-end space-x-2 mt-3">
@@ -342,18 +290,11 @@ const PaymentFilters = ({ filters, onFilterChange, onClearFilters }) => {
   );
 };
 
-// ====================== PaymentList & ReceiptActions ======================
 const PaymentList = ({ payments, loading, onRefresh }) => {
   const getStatusBadge = (status) => {
-    const config = {
-      pending: 'bg-amber-100 text-amber-800',
-      successful: 'bg-emerald-100 text-emerald-800',
-      failed: 'bg-rose-100 text-rose-800',
-      refunded: 'bg-slate-100 text-slate-800'
-    };
+    const config = { pending: 'bg-amber-100 text-amber-800', successful: 'bg-emerald-100 text-emerald-800', failed: 'bg-rose-100 text-rose-800', refunded: 'bg-slate-100 text-slate-800' };
     return <span className={`px-1.5 py-0.5 rounded-full text-xxs font-medium ${config[status] || config.pending}`}>{status}</span>;
   };
-
   const getVerificationBadge = (isVerified) => (
     <span className={`px-1.5 py-0.5 rounded-full text-xxs font-medium ${isVerified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'}`}>
       {isVerified ? 'Verified' : 'Unverified'}
@@ -384,10 +325,7 @@ const PaymentList = ({ payments, loading, onRefresh }) => {
       <div className="overflow-x-auto">
         <table className="w-full text-xxs">
           <thead className="bg-slate-50/80 text-slate-500">
-            <tr>
-              <th className="px-3 py-2 text-left">Reference</th><th className="px-3 py-2 text-left">Student</th><th className="px-3 py-2 text-left">Amount</th>
-              <th className="px-3 py-2 text-left">Status</th><th className="px-3 py-2 text-left">Verified</th><th className="px-3 py-2 text-left">Date Paid</th><th className="px-3 py-2 text-left">Receipts</th>
-            </tr>
+            <tr><th className="px-3 py-2 text-left">Reference</th><th className="px-3 py-2 text-left">Student</th><th className="px-3 py-2 text-left">Amount</th><th className="px-3 py-2 text-left">Status</th><th className="px-3 py-2 text-left">Verified</th><th className="px-3 py-2 text-left">Date Paid</th><th className="px-3 py-2 text-left">Receipts</th></tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {payments.map((payment, idx) => (
@@ -409,76 +347,81 @@ const PaymentList = ({ payments, loading, onRefresh }) => {
   );
 };
 
+// ====================== BULLETPROOF RECEIPT ACTIONS ======================
 const ReceiptActions = ({ payment }) => {
   const [loading, setLoading] = useState(false);
-  const [receipts, setReceipts] = useState(null);
+  const [receipts, setReceipts] = useState(null); // null = not loaded, [] = empty
   const [showMenu, setShowMenu] = useState(false);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
-  const buttonRef = useRef(null);
-  const dropdownRef = useRef(null);
 
   const fetchReceipts = async () => {
-    if (receipts) { setShowMenu(!showMenu); return; }
+    // Toggle if already loaded
+    if (receipts !== null) {
+      setShowMenu(prev => !prev);
+      return;
+    }
+
     setLoading(true);
     try {
+      console.log(`Fetching receipts for payment: ${payment.payment_reference}`);
       const res = await api.get(`/main/receipt/by-payment/${payment.payment_reference}/`);
-      setReceipts(res.data);
+      console.log('API response:', res.data);
+
+      // Extract array – handle both {results: [...]} and direct array
+      let receiptsData = [];
+      if (Array.isArray(res.data)) {
+        receiptsData = res.data;
+      } else if (res.data?.results && Array.isArray(res.data.results)) {
+        receiptsData = res.data.results;
+      } else {
+        receiptsData = [];
+      }
+      setReceipts(receiptsData);
       setShowMenu(true);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    } catch (err) {
+      console.error('Failed to fetch receipts:', err);
+      setReceipts([]); // show "No receipts"
+      setShowMenu(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const positionDropdown = useCallback(() => {
-    if (!buttonRef.current || !showMenu) return;
-    const rect = buttonRef.current.getBoundingClientRect();
-    const dh = dropdownRef.current?.offsetHeight || 0;
-    const top = rect.bottom + 8 + dh < window.innerHeight ? rect.bottom + 8 : rect.top - dh - 8;
-    let left = rect.left;
-    const dw = dropdownRef.current?.offsetWidth || 0;
-    if (left + dw > window.innerWidth) left = window.innerWidth - dw - 8;
-    setDropdownPosition({ top, left });
-  }, [showMenu]);
-
-  useEffect(() => {
-    if (showMenu) {
-      positionDropdown();
-      window.addEventListener('scroll', positionDropdown, true);
-      window.addEventListener('resize', positionDropdown);
-      return () => {
-        window.removeEventListener('scroll', positionDropdown, true);
-        window.removeEventListener('resize', positionDropdown);
-      };
-    }
-  }, [showMenu, positionDropdown]);
-
-  useEffect(() => {
-    if (!showMenu) return;
-    const handleClickOutside = (e) => {
-      if (!buttonRef.current?.contains(e.target) && !dropdownRef.current?.contains(e.target)) setShowMenu(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showMenu]);
-
   const downloadReceipt = (receipt) => {
-    window.open(receipt.pdf_url || `/api/receipt/${receipt.id}/download/`, '_blank');
+    const url = receipt.pdf_url || `/api/receipt/${receipt.id}/download/`;
+    window.open(url, '_blank');
     setShowMenu(false);
   };
 
   return (
-    <div className="relative">
-      <button ref={buttonRef} onClick={fetchReceipts} className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1" disabled={loading}>
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z" /></svg>
+    <div className="relative inline-block">
+      <button
+        onClick={fetchReceipts}
+        className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 focus:outline-none"
+        disabled={loading}
+        title="View receipts"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z" />
+        </svg>
         {loading && <div className="w-2.5 h-2.5 border border-indigo-600 border-t-transparent rounded-full animate-spin"></div>}
       </button>
-      {showMenu && receipts && (
-        <div ref={dropdownRef} className="fixed bg-white rounded-md shadow-lg border border-slate-200 z-20 min-w-[120px]" style={{ top: dropdownPosition.top, left: dropdownPosition.left }}>
+
+      {showMenu && receipts !== null && (
+        <div className="absolute left-0 mt-2 w-40 bg-white rounded-md shadow-lg border border-slate-200 z-50">
           <div className="py-1">
-            {receipts.length === 0 && <div className="px-3 py-1.5 text-xxs text-slate-500">No receipts</div>}
-            {receipts.map(rec => (
-              <button key={rec.id} onClick={() => downloadReceipt(rec)} className="block w-full text-left px-3 py-1.5 text-xxs text-slate-700 hover:bg-slate-50">
-                {rec.receipt_type === 'student' ? '📄 Student Copy' : '🏫 School Copy'}
-              </button>
-            ))}
+            {receipts.length === 0 ? (
+              <div className="px-3 py-1.5 text-xxs text-slate-500">No receipts</div>
+            ) : (
+              receipts.map(rec => (
+                <button
+                  key={rec.id}
+                  onClick={() => downloadReceipt(rec)}
+                  className="block w-full text-left px-3 py-1.5 text-xxs text-slate-700 hover:bg-slate-50"
+                >
+                  {rec.receipt_type === 'student' ? '📄 Student Copy' : '🏫 School Copy'}
+                </button>
+              ))
+            )}
           </div>
         </div>
       )}
@@ -486,7 +429,7 @@ const ReceiptActions = ({ payment }) => {
   );
 };
 
-// ====================== PaymentForm (fixed student filtering) ======================
+// ====================== PaymentForm (unchanged, works) ======================
 const PaymentForm = ({ onClose, onSubmit }) => {
   const [formData, setFormData] = useState({ school_class: '', student: '', student_fee: '', amount: '' });
   const [classes, setClasses] = useState([]);
@@ -512,7 +455,6 @@ const PaymentForm = ({ onClose, onSubmit }) => {
     fetchClasses();
   }, []);
 
-  // FIX: Use the same endpoint as ClassesPage to get students filtered by school + class
   useEffect(() => {
     const fetchStudents = async () => {
       if (!formData.school_class) { setStudents([]); return; }
@@ -670,35 +612,6 @@ const PaymentForm = ({ onClose, onSubmit }) => {
             <button type="submit" disabled={loading} className="flex-1 py-1.5 text-xxs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">{loading ? 'Recording...' : 'Record Payment'}</button>
           </div>
         </form>
-      </div>
-    </div>
-  );
-};
-
-// ====================== Optional: VerifyPaymentModal (not used but kept for completeness) ======================
-const VerifyPaymentModal = ({ payment, onClose, onVerify }) => {
-  const [reference, setReference] = useState(payment?.payment_reference || '');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleVerify = async () => {
-    if (!reference.trim()) { setError('Payment reference is required'); return; }
-    setLoading(true);
-    setError('');
-    const result = await onVerify(reference);
-    if (!result.success) setError(result.error.detail || 'Verification failed');
-    setLoading(false);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-      <div className="bg-white rounded-xl max-w-md w-full shadow-2xl">
-        <div className="flex justify-between items-center p-4 border-b"><h3 className="text-sm font-semibold">Verify Payment</h3><button onClick={onClose} className="text-slate-400">✕</button></div>
-        <div className="p-4 space-y-3">
-          {error && <div className="bg-rose-50 p-2 rounded text-xxs text-rose-700">{error}</div>}
-          <input type="text" value={reference} onChange={e => setReference(e.target.value)} placeholder="Payment reference" className="w-full border rounded px-2 py-1.5 text-xxs" />
-          <button onClick={handleVerify} disabled={loading} className="w-full py-1.5 bg-indigo-600 text-white rounded text-xxs">{loading ? 'Verifying...' : 'Verify'}</button>
-        </div>
       </div>
     </div>
   );
