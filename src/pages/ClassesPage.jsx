@@ -1,6 +1,30 @@
 // src/pages/ClassesPage.jsx
 import React, { useState, useEffect } from 'react';
 import api from '../api';
+import {
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area
+} from 'recharts';
+
+// --- Helper Functions ---
+const getStudentPaymentStatus = (student) => {
+  if (student.total_balance <= 0) return 'paid';
+  if (student.total_paid > 0) return 'partial';
+  return 'unpaid';
+};
+
+const getStatusColor = (status) => {
+  switch (status) {
+    case 'paid': return 'bg-emerald-100 text-emerald-800';
+    case 'partial': return 'bg-amber-100 text-amber-800';
+    case 'unpaid': return 'bg-rose-100 text-rose-800';
+    default: return 'bg-slate-100 text-slate-800';
+  }
+};
+
+const formatMoney = (amount) => `GH₵${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const COLORS = ['#10b981', '#f59e0b', '#ef4444'];
 
 const ClassesPage = () => {
   const [classes, setClasses] = useState([]);
@@ -21,13 +45,14 @@ const ClassesPage = () => {
   const [classToDelete, setClassToDelete] = useState(null);
   const [deletingClass, setDeletingClass] = useState(false);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [globalPaymentSummary, setGlobalPaymentSummary] = useState({ paid: 0, partial: 0, unpaid: 0 });
+  const [loadingSummary, setLoadingSummary] = useState(false);
 
   useEffect(() => {
     fetchClasses();
   }, []);
 
   useEffect(() => {
-    // Filter students whenever search term or students change
     if (students.length > 0) {
       const filtered = students.filter(student =>
         searchStudents(student, searchTerm)
@@ -40,7 +65,6 @@ const ClassesPage = () => {
 
   const searchStudents = (student, term) => {
     if (!term.trim()) return true;
-    
     const searchLower = term.toLowerCase();
     return (
       student.first_name?.toLowerCase().includes(searchLower) ||
@@ -52,15 +76,43 @@ const ClassesPage = () => {
     );
   };
 
+  const aggregateGlobalPaymentSummary = async (classesList) => {
+    if (!classesList.length) {
+      setGlobalPaymentSummary({ paid: 0, partial: 0, unpaid: 0 });
+      return;
+    }
+    setLoadingSummary(true);
+    let paidCount = 0, partialCount = 0, unpaidCount = 0;
+    try {
+      const classPromises = classesList.map(cls =>
+        api.get(`/main/students-by-class/${cls.id}/`).then(res => res.data.students).catch(() => [])
+      );
+      const allStudentsArrays = await Promise.all(classPromises);
+      allStudentsArrays.forEach(studentsArray => {
+        studentsArray.forEach(student => {
+          const status = getStudentPaymentStatus(student);
+          if (status === 'paid') paidCount++;
+          else if (status === 'partial') partialCount++;
+          else unpaidCount++;
+        });
+      });
+      setGlobalPaymentSummary({ paid: paidCount, partial: partialCount, unpaid: unpaidCount });
+    } catch (error) {
+      console.error('Error aggregating payment summary:', error);
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
   const fetchClasses = async () => {
     try {
       setLoading(true);
-      setError('');
       const response = await api.get('/main/class-overview/');
       setClasses(response.data);
+      await aggregateGlobalPaymentSummary(response.data);
+      setError('');
     } catch (error) {
-      console.error('Error fetching classes:', error);
-      setError('Failed to load classes. Please try again.');
+      setError('Failed to load classes.');
     } finally {
       setLoading(false);
     }
@@ -69,7 +121,6 @@ const ClassesPage = () => {
   const fetchStudentsByClass = async (classId) => {
     try {
       setLoadingStudents(true);
-      setError('');
       const response = await api.get(`/main/students-by-class/${classId}/`);
       setStudents(response.data.students);
       setFilteredStudents(response.data.students);
@@ -77,8 +128,7 @@ const ClassesPage = () => {
       setExpandedStudent(null);
       setSearchTerm('');
     } catch (error) {
-      console.error('Error fetching students:', error);
-      setError('Failed to load students. Please try again.');
+      setError('Failed to load students.');
     } finally {
       setLoadingStudents(false);
     }
@@ -102,48 +152,17 @@ const ClassesPage = () => {
     setExpandedStudent(expandedStudent === studentId ? null : studentId);
   };
 
-  const getPaymentStatus = (student) => {
-    if (student.total_balance <= 0) return 'paid';
-    if (student.total_paid > 0) return 'partial';
-    return 'unpaid';
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'paid': return 'bg-green-100 text-green-800';
-      case 'partial': return 'bg-yellow-100 text-yellow-800';
-      case 'unpaid': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value);
-  };
-
-  const clearSearch = () => {
-    setSearchTerm('');
-  };
-
   const handleAddClass = async (e) => {
     e.preventDefault();
-    if (!newClassName.trim()) {
-      alert('Please enter a class name');
-      return;
-    }
-
+    if (!newClassName.trim()) return;
     setAddingClass(true);
     try {
       await api.post('/main/school_class/', { name: newClassName });
-      alert('Class added successfully!');
       setShowAddClassModal(false);
       setNewClassName('');
-      // Refresh the classes list
       await fetchClasses();
     } catch (error) {
-      console.error('Error adding class:', error);
-      const msg = error.response?.data ? JSON.stringify(error.response.data) : 'Please try again.';
-      alert(`Error adding class: ${msg}`);
+      alert(`Error: ${error.response?.data ? JSON.stringify(error.response.data) : error.message}`);
     } finally {
       setAddingClass(false);
     }
@@ -151,23 +170,13 @@ const ClassesPage = () => {
 
   const handleDeleteClass = async () => {
     if (!classToDelete) return;
-
     setDeletingClass(true);
     try {
       await api.delete(`/main/school_class/${classToDelete.id}/`);
-      alert('Class deleted successfully!');
-      
-      // If we're currently viewing the deleted class, go back to class list
-      if (selectedClass && selectedClass.id === classToDelete.id) {
-        handleBackToClasses();
-      }
-      
-      // Refresh the classes list
+      if (selectedClass && selectedClass.id === classToDelete.id) handleBackToClasses();
       await fetchClasses();
     } catch (error) {
-      console.error('Error deleting class:', error);
-      const msg = error.response?.data ? JSON.stringify(error.response.data) : 'Please try again.';
-      alert(`Error deleting class: ${msg}`);
+      alert(`Error: ${error.response?.data ? JSON.stringify(error.response.data) : error.message}`);
     } finally {
       setDeletingClass(false);
       setShowDeleteModal(false);
@@ -188,10 +197,10 @@ const ClassesPage = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading classes...</p>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="relative">
+          <div className="w-10 h-10 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+          <p className="mt-3 text-xxs text-slate-400 animate-pulse">Loading classes...</p>
         </div>
       </div>
     );
@@ -199,80 +208,45 @@ const ClassesPage = () => {
 
   if (error && !selectedClass) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="text-red-600 mb-4">{error}</div>
-          <button 
-            onClick={fetchClasses}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Retry
-          </button>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="glass-card rounded-2xl p-6 text-center">
+          <p className="text-rose-500 text-sm mb-3">{error}</p>
+          <button onClick={fetchClasses} className="px-4 py-1.5 bg-indigo-600 text-white text-xs rounded-xl shadow hover:shadow-md transition-all">Retry</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-5 p-4 md:p-5 max-w-[1600px] mx-auto animate-fadeInUp">
       {/* Header */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center justify-between">
+      <div className="relative overflow-hidden rounded-xl bg-white/70 backdrop-blur-sm border border-white/30 shadow-lg p-4">
+        <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-indigo-100/40 to-transparent rounded-full blur-2xl" />
+        <div className="relative flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {selectedClass ? `Class - ${classInfo?.name}` : 'Class Management'}
+            <h1 className="text-base font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+              {selectedClass ? `🎓 ${classInfo?.name}` : '📚 Class Intelligence'}
             </h1>
-            <p className="text-gray-600 mt-1">
-              {selectedClass 
-                ? `Manage students and view detailed fee information for ${classInfo?.name}`
-                : 'Create and manage classes, then select a class to view students and fee details'
-              }
+            <p className="text-xxs text-slate-500 mt-0.5">
+              {selectedClass ? 'Granular student & fee analytics' : 'Overview of all classes, collections & payment distribution'}
             </p>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-2">
             {!selectedClass && (
-              <button
-                onClick={() => setShowAddClassModal(true)}
-                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors duration-200 font-medium flex items-center space-x-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
+              <button onClick={() => setShowAddClassModal(true)} className="group relative flex items-center gap-1.5 px-3 py-1.5 text-xxs font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg shadow hover:shadow-md transition-all hover:scale-[1.02]">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                 <span>Add Class</span>
               </button>
             )}
             {selectedClass && (
               <>
-                <div className="flex bg-gray-100 rounded-lg p-1">
-                  <button
-                    onClick={() => setViewMode('summary')}
-                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                      viewMode === 'summary'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    Summary
-                  </button>
-                  <button
-                    onClick={() => setViewMode('detailed')}
-                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                      viewMode === 'detailed'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    Detailed
-                  </button>
+                <div className="flex bg-slate-100/80 rounded-lg p-0.5">
+                  <button onClick={() => setViewMode('summary')} className={`px-2.5 py-1 text-xxs font-medium rounded-md transition-all ${viewMode === 'summary' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Summary</button>
+                  <button onClick={() => setViewMode('detailed')} className={`px-2.5 py-1 text-xxs font-medium rounded-md transition-all ${viewMode === 'detailed' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Detailed</button>
                 </div>
-                <button
-                  onClick={handleBackToClasses}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors duration-200 font-medium flex items-center space-x-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                  </svg>
-                  <span>Back to Classes</span>
+                <button onClick={handleBackToClasses} className="flex items-center gap-1 px-3 py-1.5 text-xxs bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-all">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                  <span>Back</span>
                 </button>
               </>
             )}
@@ -280,807 +254,243 @@ const ClassesPage = () => {
         </div>
       </div>
 
-      {/* Add Class Modal */}
+      {/* Modals - Sleek & Compact */}
       {showAddClassModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowAddClassModal(false)} />
-          <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto shadow-xl">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
-              <h3 className="text-lg font-semibold text-gray-900">Add New Class</h3>
-              <button
-                onClick={() => setShowAddClassModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors rounded-lg p-1 hover:bg-gray-100"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-6">
-              <form onSubmit={handleAddClass} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Class Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newClassName}
-                    onChange={(e) => setNewClassName(e.target.value)}
-                    placeholder="e.g., Primary 1, Grade 2, Form 3"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  />
-                  <p className="text-sm text-gray-500 mt-1">
-                    Enter the name of the class you want to create
-                  </p>
-                </div>
-
-                <div className="bg-orange-50 rounded-lg p-3">
-                  <h4 className="text-sm font-medium text-orange-800 mb-1">Note</h4>
-                  <p className="text-sm text-orange-700">
-                    The class will be automatically associated with your school. You can then assign students to this class and create fee structures for it.
-                  </p>
-                </div>
-
-                <div className="flex space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAddClassModal(false);
-                      setNewClassName('');
-                    }}
-                    className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={addingClass || !newClassName.trim()}
-                    className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50"
-                  >
-                    {addingClass ? 'Adding...' : 'Add Class'}
-                  </button>
-                </div>
-              </form>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowAddClassModal(false)} />
+          <div className="relative bg-white rounded-xl w-full max-w-sm shadow-2xl p-5 animate-scaleUp">
+            <h3 className="text-sm font-semibold text-slate-800 mb-3">Create New Class</h3>
+            <form onSubmit={handleAddClass} className="space-y-3">
+              <input type="text" required value={newClassName} onChange={(e) => setNewClassName(e.target.value)} placeholder="e.g., Primary 1, Grade 2" className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-1 focus:ring-amber-400" />
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setShowAddClassModal(false)} className="flex-1 py-1.5 text-xs bg-slate-100 rounded-lg">Cancel</button>
+                <button type="submit" disabled={addingClass} className="flex-1 py-1.5 text-xs bg-amber-600 text-white rounded-lg disabled:opacity-50">{addingClass ? 'Creating...' : 'Create'}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowDeleteModal(false)} />
-          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-xl">
-            <div className="p-6">
-              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
-                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-                Delete Class
-              </h3>
-              <p className="text-gray-600 text-center mb-6">
-                Are you sure you want to delete <span className="font-semibold">{classToDelete?.name}</span>? This action cannot be undone.
-              </p>
-              
-              {classToDelete?.total_students > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                  <div className="flex items-center">
-                    <svg className="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
-                    <span className="text-sm font-medium text-red-800">
-                      Warning: This class has {classToDelete?.total_students} student{classToDelete?.total_students !== 1 ? 's' : ''}. 
-                      Deleting it will remove all associated data.
-                    </span>
-                  </div>
-                </div>
-              )}
-              
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDelete}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                >
-                  Delete Class
-                </button>
-              </div>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)} />
+          <div className="relative bg-white rounded-xl max-w-md w-full p-5 shadow-2xl">
+            <div className="flex items-center justify-center w-8 h-8 mx-auto bg-rose-100 rounded-full"><svg className="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg></div>
+            <h3 className="text-sm font-semibold text-center mt-2">Delete Class</h3>
+            <p className="text-xxs text-slate-600 text-center mt-1">Delete <span className="font-medium">{classToDelete?.name}</span>? This action is irreversible.</p>
+            {classToDelete?.total_students > 0 && <p className="text-xxs bg-rose-50 text-rose-700 p-2 rounded-lg mt-3">⚠️ {classToDelete.total_students} student(s) will be affected.</p>}
+            <div className="flex gap-2 mt-4"><button onClick={() => setShowDeleteModal(false)} className="flex-1 py-1.5 text-xs bg-slate-100 rounded-lg">Cancel</button><button onClick={confirmDelete} className="flex-1 py-1.5 text-xs bg-rose-600 text-white rounded-lg">Delete</button></div>
           </div>
         </div>
       )}
 
-      {/* Final Delete Confirmation Modal */}
       {showDeleteConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowDeleteConfirmModal(false)} />
-          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-xl">
-            <div className="p-6">
-              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
-                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-                Final Confirmation
-              </h3>
-              <p className="text-gray-600 text-center mb-6">
-                You are about to permanently delete <span className="font-semibold">{classToDelete?.name}</span>. This will remove:
-              </p>
-              
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                <ul className="space-y-2 text-sm text-red-800">
-                  <li className="flex items-center">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    The class itself
-                  </li>
-                  {classToDelete?.total_students > 0 && (
-                    <>
-                      <li className="flex items-center">
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        All {classToDelete?.total_students} student{classToDelete?.total_students !== 1 ? 's' : ''}
-                      </li>
-                      <li className="flex items-center">
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        All fee records for these students
-                      </li>
-                    </>
-                  )}
-                  <li className="flex items-center">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    All payment history
-                  </li>
-                </ul>
-              </div>
-              
-              <p className="text-red-600 font-medium text-center mb-6">
-                This action cannot be undone. Are you absolutely sure?
-              </p>
-              
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => {
-                    setShowDeleteConfirmModal(false);
-                    setClassToDelete(null);
-                  }}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-                >
-                  No, Keep Class
-                </button>
-                <button
-                  onClick={handleDeleteClass}
-                  disabled={deletingClass}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                >
-                  {deletingClass ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Deleting...
-                    </>
-                  ) : (
-                    'Yes, Delete Permanently'
-                  )}
-                </button>
-              </div>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-xl max-w-md w-full p-5 shadow-2xl">
+            <h3 className="text-sm font-bold text-center">⚠️ Final Warning</h3>
+            <p className="text-xxs text-slate-700 text-center mt-2">You are about to permanently delete <b>{classToDelete?.name}</b> and all its students, fees, and payment history.</p>
+            <div className="flex gap-2 mt-5"><button onClick={() => setShowDeleteConfirmModal(false)} className="flex-1 py-1.5 text-xs bg-slate-100 rounded-lg">Keep Class</button><button onClick={handleDeleteClass} disabled={deletingClass} className="flex-1 py-1.5 text-xs bg-rose-600 text-white rounded-lg">{deletingClass ? 'Deleting...' : 'Delete Permanently'}</button></div>
           </div>
         </div>
       )}
 
       {!selectedClass ? (
-        <ClassSelector 
-          classes={classes} 
-          onClassSelect={handleClassSelect}
-          error={error}
-          onAddClass={() => setShowAddClassModal(true)}
-          onDeleteClass={openDeleteModal}
-        />
+        <ClassOverviewDashboard classes={classes} onClassSelect={handleClassSelect} onAddClass={() => setShowAddClassModal(true)} onDeleteClass={openDeleteModal} globalPaymentSummary={globalPaymentSummary} loadingSummary={loadingSummary} />
       ) : (
-        <StudentDetails 
-          students={filteredStudents}
-          allStudents={students}
-          classInfo={classInfo}
-          loading={loadingStudents}
-          viewMode={viewMode}
-          expandedStudent={expandedStudent}
-          onToggleExpansion={toggleStudentExpansion}
-          onRefresh={() => fetchStudentsByClass(selectedClass.id)}
-          getPaymentStatus={getPaymentStatus}
-          getStatusColor={getStatusColor}
-          searchTerm={searchTerm}
-          onSearchChange={handleSearchChange}
-          onClearSearch={clearSearch}
-        />
+        <StudentDetailsView students={filteredStudents} allStudents={students} classInfo={classInfo} loading={loadingStudents} viewMode={viewMode} expandedStudent={expandedStudent} onToggleExpansion={toggleStudentExpansion} onRefresh={() => fetchStudentsByClass(selectedClass.id)} searchTerm={searchTerm} onSearchChange={(e) => setSearchTerm(e.target.value)} onClearSearch={() => setSearchTerm('')} getPaymentStatus={getStudentPaymentStatus} getStatusColor={getStatusColor} />
       )}
     </div>
   );
 };
 
-// Class Selector Component with Add Class Button
-const ClassSelector = ({ classes, onClassSelect, error, onAddClass, onDeleteClass }) => {
-  if (error) {
-    return (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <div className="text-center text-red-600">{error}</div>
-      </div>
-    );
-  }
+// --- Class Overview with Charts & Metrics ---
+const ClassOverviewDashboard = ({ classes, onClassSelect, onAddClass, onDeleteClass, globalPaymentSummary, loadingSummary }) => {
+  const totalStats = {
+    classes: classes.length,
+    students: classes.reduce((sum, c) => sum + c.total_students, 0),
+    due: classes.reduce((sum, c) => sum + c.total_due, 0),
+    paid: classes.reduce((sum, c) => sum + c.total_paid, 0),
+    balance: classes.reduce((sum, c) => sum + c.total_balance, 0),
+  };
+
+  const pieData = [
+    { name: 'Fully Paid', value: globalPaymentSummary.paid, color: '#10b981' },
+    { name: 'Partial', value: globalPaymentSummary.partial, color: '#f59e0b' },
+    { name: 'Unpaid', value: globalPaymentSummary.unpaid, color: '#ef4444' },
+  ].filter(d => d.value > 0);
+
+  const collectionData = classes.map(c => ({ name: c.name.length > 10 ? c.name.slice(0,8)+'..' : c.name, rate: c.collection_rate }));
 
   return (
-    <div className="space-y-6">
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <p className="text-sm text-gray-600">Total Classes</p>
-          <p className="text-2xl font-bold text-gray-900">{classes.length}</p>
+    <div className="space-y-5">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <MetricCard label="Total Classes" value={totalStats.classes} icon="🏛️" trend="active" />
+        <MetricCard label="Enrolled Students" value={totalStats.students} icon="👥" trend="total" />
+        <MetricCard label="Collected" value={formatMoney(totalStats.paid)} icon="💰" trend="+ revenue" />
+        <MetricCard label="Outstanding" value={formatMoney(totalStats.balance)} icon="⚖️" trend="due" />
+      </div>
+
+      {/* Charts Grid */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="glass-card rounded-xl p-3 transition-all hover:shadow-md">
+          <h3 className="text-xxs font-semibold text-slate-500 mb-2">📊 Payment Distribution (All Classes)</h3>
+          <ResponsiveContainer width="100%" height={180}>
+            <PieChart>
+              <Pie data={pieData} dataKey="value" cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={2} stroke="none">
+                {pieData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
+              </Pie>
+              <Tooltip formatter={(val) => `${val} students`} contentStyle={{ fontSize: '9px', borderRadius: '8px' }} />
+              <Legend iconSize={6} wrapperStyle={{ fontSize: '8px' }} />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <p className="text-sm text-gray-600">Total Students</p>
-          <p className="text-2xl font-bold text-gray-900">
-            {classes.reduce((total, cls) => total + cls.total_students, 0)}
-          </p>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <p className="text-sm text-gray-600">Total Due</p>
-          <p className="text-2xl font-bold text-gray-900">
-            GH₵{classes.reduce((total, cls) => total + cls.total_due, 0).toFixed(2)}
-          </p>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <p className="text-sm text-gray-600">Outstanding</p>
-          <p className="text-2xl font-bold text-red-600">
-            GH₵{classes.reduce((total, cls) => total + cls.total_balance, 0).toFixed(2)}
-          </p>
+        <div className="glass-card rounded-xl p-3 transition-all hover:shadow-md">
+          <h3 className="text-xxs font-semibold text-slate-500 mb-2">📈 Collection Rate by Class</h3>
+          <ResponsiveContainer width="100%" height={180}>
+            <AreaChart data={collectionData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+              <defs><linearGradient id="rateGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.7}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient></defs>
+              <XAxis dataKey="name" tick={{ fontSize: 8 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 8 }} unit="%" />
+              <Tooltip formatter={(val) => `${val.toFixed(1)}%`} contentStyle={{ fontSize: '9px' }} />
+              <Area type="monotone" dataKey="rate" stroke="#6366f1" fill="url(#rateGrad)" strokeWidth={1.5} />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Classes Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Add Class Card */}
-        <div
-          className="bg-white rounded-2xl shadow-sm border-2 border-dashed border-gray-300 p-6 hover:border-orange-400 hover:shadow-md transition-all cursor-pointer flex flex-col items-center justify-center min-h-[200px]"
-          onClick={onAddClass}
-        >
-          <div className="text-orange-400 mb-3">
-            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Add New Class</h3>
-          <p className="text-sm text-gray-500 text-center">
-            Create a new class to start managing students and fees
-          </p>
+      {/* Class Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Add new class tile */}
+        <div onClick={onAddClass} className="group cursor-pointer bg-white/60 backdrop-blur-sm border-2 border-dashed border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center transition-all hover:border-amber-300 hover:shadow-md min-h-[220px]">
+          <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center group-hover:scale-110 transition"><svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg></div>
+          <p className="text-xs font-medium text-slate-600 mt-2">Add New Class</p>
+          <p className="text-xxs text-slate-400 text-center mt-1">Create a class to manage students & fees</p>
         </div>
 
-        {/* Existing Classes */}
-        {classes.map((classItem) => (
-          <div
-            key={classItem.id}
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow relative group"
-          >
-            {/* Delete Button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDeleteClass(classItem);
-              }}
-              className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200"
-              title="Delete Class"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
-            
-            <div onClick={() => onClassSelect(classItem)} className="cursor-pointer">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">{classItem.name}</h3>
-                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
-                  {classItem.total_students} students
-                </span>
+        {classes.map((cls, idx) => (
+          <div key={cls.id} className="group relative bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-lg transition-all hover:-translate-y-0.5 animate-fadeIn" style={{animationDelay: `${idx * 40}ms`}}>
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition"><button onClick={(e) => { e.stopPropagation(); onDeleteClass(cls); }} className="p-1 text-slate-400 hover:text-rose-500 rounded-md"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div>
+            <div onClick={() => onClassSelect(cls)} className="p-4 cursor-pointer">
+              <div className="flex justify-between items-start"><h4 className="text-sm font-semibold text-slate-800">{cls.name}</h4><span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-xxs rounded-full">{cls.total_students} std</span></div>
+              <div className="grid grid-cols-3 gap-1 mt-3 text-xxs">
+                <div><p className="text-slate-400">Due</p><p className="font-medium">{formatMoney(cls.total_due)}</p></div>
+                <div><p className="text-slate-400">Paid</p><p className="font-medium text-emerald-600">{formatMoney(cls.total_paid)}</p></div>
+                <div><p className="text-slate-400">Balance</p><p className={`font-medium ${cls.total_balance > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{formatMoney(cls.total_balance)}</p></div>
               </div>
-              
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Total Due</span>
-                  <span className="text-sm font-semibold">GH₵{classItem.total_due.toFixed(2)}</span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Total Paid</span>
-                  <span className="text-sm font-semibold text-green-600">GH₵{classItem.total_paid.toFixed(2)}</span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Balance</span>
-                  <span className={`text-sm font-semibold ${
-                    classItem.total_balance > 0 ? 'text-red-600' : 'text-gray-900'
-                  }`}>
-                    GH₵{classItem.total_balance.toFixed(2)}
-                  </span>
-                </div>
-                
-                <div className="pt-2 border-t border-gray-200">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm text-gray-600">Collection Rate</span>
-                    <span className={`text-sm font-semibold ${
-                      classItem.collection_rate >= 80 ? 'text-green-600' : 
-                      classItem.collection_rate >= 50 ? 'text-yellow-600' : 'text-red-600'
-                    }`}>
-                      {classItem.collection_rate.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`h-2 rounded-full ${
-                        classItem.collection_rate >= 80 ? 'bg-green-500' : 
-                        classItem.collection_rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}
-                      style={{ width: `${Math.min(classItem.collection_rate, 100)}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                  View Class Details
-                </button>
-              </div>
+              <div className="mt-3"><div className="flex justify-between text-xxs mb-0.5"><span>Collection</span><span className="font-medium">{cls.collection_rate.toFixed(0)}%</span></div><div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-400 transition-all duration-700" style={{ width: `${Math.min(cls.collection_rate, 100)}%` }}></div></div></div>
             </div>
           </div>
         ))}
-        
-        {classes.length === 0 && (
-          <div className="col-span-full text-center py-12">
-            <div className="text-gray-400 mb-4">
-              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 14l9-5-9-5-9 5 9 5z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Classes Yet</h3>
-            <p className="text-gray-600 mb-4">Get started by creating your first class.</p>
-            <button
-              onClick={onAddClass}
-              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-            >
-              Create First Class
-            </button>
-          </div>
-        )}
+        {classes.length === 0 && (<div className="col-span-full text-center py-12 glass-card rounded-xl"><p className="text-sm text-slate-500">No classes yet. Click "Add Class" to begin.</p></div>)}
       </div>
     </div>
   );
 };
 
-// Student Details Component with Search (Same as before)
-const StudentDetails = ({ 
-  students, 
-  allStudents,
-  classInfo, 
-  loading, 
-  viewMode,
-  expandedStudent,
-  onToggleExpansion,
-  onRefresh,
-  getPaymentStatus,
-  getStatusColor,
-  searchTerm,
-  onSearchChange,
-  onClearSearch
-}) => {
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading students...</p>
-        </div>
-      </div>
-    );
-  }
+const MetricCard = ({ label, value, icon, trend }) => (
+  <div className="bg-white/70 backdrop-blur-sm rounded-xl border border-white/30 p-3 shadow-sm transition-all hover:shadow">
+    <div className="flex items-center justify-between"><span className="text-base">{icon}</span><span className="text-xxs text-emerald-600 bg-emerald-50 px-1.5 rounded-full">{trend}</span></div>
+    <p className="text-xxs text-slate-500 mt-1">{label}</p>
+    <p className="text-sm font-bold text-slate-800">{value}</p>
+  </div>
+);
 
-  const classSummary = allStudents.reduce(
-    (summary, student) => {
-      summary.totalDue += student.total_due || 0;
-      summary.totalPaid += student.total_paid || 0;
-      summary.totalBalance += student.total_balance || 0;
-      
-      const status = getPaymentStatus(student);
-      summary[status] = (summary[status] || 0) + 1;
-      
-      return summary;
-    },
-    { totalDue: 0, totalPaid: 0, totalBalance: 0, paid: 0, partial: 0, unpaid: 0 }
-  );
+// --- Student Details View (Compact, with expandable fees) ---
+const StudentDetailsView = ({ students, allStudents, classInfo, loading, viewMode, expandedStudent, onToggleExpansion, onRefresh, searchTerm, onSearchChange, onClearSearch, getPaymentStatus, getStatusColor }) => {
+  if (loading) return (<div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div></div>);
+
+  const classSummary = allStudents.reduce((acc, s) => {
+    acc.totalDue += s.total_due || 0;
+    acc.totalPaid += s.total_paid || 0;
+    acc.totalBalance += s.total_balance || 0;
+    const status = getPaymentStatus(s);
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, { totalDue: 0, totalPaid: 0, totalBalance: 0, paid: 0, partial: 0, unpaid: 0 });
+
+  const statusChartData = [{ name: 'Paid', value: classSummary.paid, color: '#10b981' }, { name: 'Partial', value: classSummary.partial, color: '#f59e0b' }, { name: 'Unpaid', value: classSummary.unpaid, color: '#ef4444' }].filter(d => d.value > 0);
 
   return (
-    <div className="space-y-6">
-      {/* Class Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <p className="text-sm text-gray-600">Total Students</p>
-          <p className="text-2xl font-bold text-gray-900">{allStudents.length}</p>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <p className="text-sm text-gray-600">Total Due</p>
-          <p className="text-2xl font-bold text-gray-900">GH₵{classSummary.totalDue.toFixed(2)}</p>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <p className="text-sm text-gray-600">Total Paid</p>
-          <p className="text-2xl font-bold text-green-600">GH₵{classSummary.totalPaid.toFixed(2)}</p>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <p className="text-sm text-gray-600">Outstanding</p>
-          <p className="text-2xl font-bold text-red-600">GH₵{classSummary.totalBalance.toFixed(2)}</p>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <p className="text-sm text-gray-600">Fully Paid</p>
-          <p className="text-2xl font-bold text-green-600">{classSummary.paid}</p>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <p className="text-sm text-gray-600">With Balance</p>
-          <p className="text-2xl font-bold text-red-600">{classSummary.partial + classSummary.unpaid}</p>
+    <div className="space-y-4">
+      {/* Quick Stats + Mini Donut */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <StatCard label="Students" value={allStudents.length} icon="👩‍🎓" />
+        <StatCard label="Total Due" value={formatMoney(classSummary.totalDue)} icon="📋" />
+        <StatCard label="Collected" value={formatMoney(classSummary.totalPaid)} icon="✅" color="text-emerald-600" />
+        <StatCard label="Outstanding" value={formatMoney(classSummary.totalBalance)} icon="⚠️" color="text-amber-600" />
+        <div className="bg-white/70 rounded-xl p-2 flex items-center justify-between">
+          <div><p className="text-xxs text-slate-500">Payment Status</p><div className="flex gap-1 mt-1 text-xxs"><span className="text-emerald-600">P:{classSummary.paid}</span><span className="text-amber-500">Pa:{classSummary.partial}</span><span className="text-rose-500">U:{classSummary.unpaid}</span></div></div>
+          <div className="w-10 h-10 relative"><div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(from 0deg, #10b981 0deg ${(classSummary.paid/allStudents.length||0)*360}deg, #f59e0b ${(classSummary.paid/allStudents.length||0)*360}deg ${((classSummary.paid+classSummary.partial)/allStudents.length||0)*360}deg, #ef4444 ${((classSummary.paid+classSummary.partial)/allStudents.length||0)*360}deg 360deg)` }}></div></div>
         </div>
       </div>
 
-      {/* Search Bar and Controls */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex-1 max-w-md">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={onSearchChange}
-                placeholder="Search students by name, ID, or parent..."
-                className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              />
-              {searchTerm && (
-                <button
-                  onClick={onClearSearch}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-3">
-            <div className="text-sm text-gray-600">
-              Showing {students.length} of {allStudents.length} students
-            </div>
-            <button
-              onClick={onRefresh}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium flex items-center space-x-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>Refresh</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Search Summary */}
-        {searchTerm && (
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-blue-800">
-                  Search results for "{searchTerm}"
-                </span>
-                <span className="px-2 py-1 bg-blue-200 text-blue-800 text-xs font-medium rounded-full">
-                  {students.length} found
-                </span>
-              </div>
-              <button
-                onClick={onClearSearch}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-              >
-                Clear search
-              </button>
-            </div>
-          </div>
-        )}
+      {/* Search Bar */}
+      <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 flex flex-wrap gap-3 items-center justify-between">
+        <div className="relative w-full max-w-xs"><svg className="absolute left-2 top-1.5 h-3 w-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg><input type="text" value={searchTerm} onChange={onSearchChange} placeholder="Search students..." className="w-full pl-7 pr-7 py-1.5 text-xxs border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-300" />{searchTerm && <button onClick={onClearSearch} className="absolute right-2 top-1.5 text-slate-400">✕</button>}</div>
+        <div className="flex items-center gap-2"><span className="text-xxs text-slate-500">{students.length}/{allStudents.length}</span><button onClick={onRefresh} className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></button></div>
       </div>
 
-      {/* Students Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Students in {classInfo?.name}</h3>
-          <p className="text-sm text-gray-600 mt-1">
-            {viewMode === 'summary' ? 'Summary view - click on students to see fee details' : 'Detailed fee breakdown view'}
-          </p>
+      {/* Student Table */}
+      <div className="bg-white/80 rounded-xl border border-slate-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xxs">
+            <thead className="bg-slate-50/80 text-slate-500"><tr><th className="px-3 py-2 text-left">Student</th><th className="px-3 py-2 text-left">ID</th><th className="px-3 py-2 text-left">Parent</th><th className="px-3 py-2 text-right">Due</th><th className="px-3 py-2 text-right">Paid</th><th className="px-3 py-2 text-right">Balance</th><th className="px-3 py-2 text-center">Status</th><th className="px-3 py-2 text-center"></th></tr></thead>
+            <tbody className="divide-y divide-slate-100">
+              {students.map((student, idx) => (
+                <React.Fragment key={student.id}>
+                  <tr className="hover:bg-slate-50/50 transition-all group animate-fadeIn" style={{animationDelay: `${idx * 20}ms`}}>
+                    <td className="px-3 py-2"><div className="font-medium text-slate-800 text-xs">{student.first_name} {student.last_name}</div>{student.other_names && <div className="text-xxs text-slate-400">{student.other_names}</div>}</td>
+                    <td className="px-3 py-2 text-xxs text-slate-500">{student.student_id} PIN-{student.pin}</td>
+                    <td className="px-3 py-2"><div className="text-xxs">{student.parent_name}</div><div className="text-xxs text-slate-400">{student.parent_contact}</div></td>
+                    <td className="px-3 py-2 text-right text-xs">{formatMoney(student.total_due)}</td>
+                    <td className="px-3 py-2 text-right text-emerald-600 text-xs">{formatMoney(student.total_paid)}</td>
+                    <td className="px-3 py-2 text-right"><span className={`text-xs font-medium ${student.total_balance > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{formatMoney(Math.abs(student.total_balance))}</span></td>
+                    <td className="px-3 py-2 text-center"><span className={`px-1.5 py-0.5 rounded-full text-xxs font-medium ${getStatusColor(getPaymentStatus(student))}`}>{getPaymentStatus(student)}</span></td>
+                    <td className="px-3 py-2 text-center"><button onClick={() => onToggleExpansion(student.id)} className="text-indigo-500 hover:text-indigo-700"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={expandedStudent === student.id ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} /></svg></button></td>
+                  </tr>
+                  {expandedStudent === student.id && (<tr><td colSpan="8" className="px-3 py-2 bg-slate-50/70"><StudentFeeExpanded student={student} /></td></tr>)}
+                </React.Fragment>
+              ))}
+              {students.length === 0 && (<tr><td colSpan="8" className="text-center py-10 text-xxs text-slate-400">No students match your search</td></tr>)}
+            </tbody>
+          </table>
         </div>
-        
-        {students.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Student
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Student ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Parent Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Due
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Paid
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Balance
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {students.map((student) => (
-                  <StudentRow 
-                    key={student.id} 
-                    student={student} 
-                    viewMode={viewMode}
-                    isExpanded={expandedStudent === student.id}
-                    onToggleExpansion={onToggleExpansion}
-                    getPaymentStatus={getPaymentStatus}
-                    getStatusColor={getStatusColor}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            {searchTerm ? (
-              <>
-                <div className="text-gray-400 mb-4">
-                  <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No students found</h3>
-                <p className="text-gray-600">No students match your search criteria.</p>
-                <button
-                  onClick={onClearSearch}
-                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Clear search
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="text-gray-400 mb-4">
-                  <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Students in This Class</h3>
-                <p className="text-gray-600">There are no students enrolled in this class yet.</p>
-              </>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
 };
 
-// Individual Student Row Component with Expandable Fee Details (Same as before)
-const StudentRow = ({ student, viewMode, isExpanded, onToggleExpansion, getPaymentStatus, getStatusColor }) => {
-  const status = getPaymentStatus(student);
-  const statusColor = getStatusColor(status);
-  
-  // Group fees by academic year and term
+const StatCard = ({ label, value, icon, color = "text-slate-800" }) => (
+  <div className="bg-white/70 rounded-xl p-2 shadow-sm"><div className="flex justify-between items-start"><span className="text-base">{icon}</span><span className="text-xxs text-slate-400">⏺</span></div><p className="text-xxs text-slate-500 mt-1">{label}</p><p className={`text-sm font-bold leading-tight ${color}`}>{value}</p></div>
+);
+
+const StudentFeeExpanded = ({ student }) => {
   const groupedFees = student.student_fees?.reduce((groups, fee) => {
     const key = `${fee.academic_year}-${fee.term}`;
-    if (!groups[key]) {
-      groups[key] = {
-        academic_year: fee.academic_year,
-        term: fee.term,
-        fees: [],
-        total_due: 0,
-        total_paid: 0,
-        total_balance: 0
-      };
-    }
+    if (!groups[key]) groups[key] = { academic_year: fee.academic_year, term: fee.term, fees: [], total_due: 0, total_paid: 0, total_balance: 0 };
     groups[key].fees.push(fee);
     groups[key].total_due += parseFloat(fee.amount_due || 0);
     groups[key].total_paid += parseFloat(fee.amount_paid || 0);
     groups[key].total_balance += parseFloat(fee.balance || 0);
     return groups;
   }, {}) || {};
-
-  return (
-    <>
-      <tr className="hover:bg-gray-50 transition-colors text-sm text-gray-900">
-        {/* Student Name */}
-        <td className="px-6 py-4 whitespace-nowrap align-middle">
-          <div>
-            <div className="font-medium">
-              {student.first_name} {student.last_name}
-            </div>
-            {student.other_names && (
-              <div className="text-gray-500">{student.other_names}</div>
-            )}
-          </div>
-        </td>
-
-        {/* Student ID & PIN */}
-        <td className="px-6 py-4 whitespace-nowrap align-middle">
-          <div>ID - {student.student_id}</div>
-          {student.pin && <div>PIN - {student.pin}</div>}
-        </td>
-
-        {/* Parent Info */}
-        <td className="px-6 py-4 whitespace-nowrap align-middle">
-          <div>{student.parent_name}</div>
-          <div className="text-gray-500">{student.parent_contact}</div>
-        </td>
-
-        {/* Total Due */}
-        <td className="px-6 py-4 whitespace-nowrap align-middle text-gray-900">
-          GH₵{student.total_due?.toFixed(2) || '0.00'}
-        </td>
-
-        {/* Total Paid */}
-        <td className="px-6 py-4 whitespace-nowrap align-middle text-green-600">
-          GH₵{student.total_paid?.toFixed(2) || '0.00'}
-        </td>
-
-        {/* Total Balance */}
-        <td className="px-6 py-4 whitespace-nowrap align-middle">
-          <span
-            className={`font-semibold ${
-              student.total_balance > 0 ? 'text-red-600' : 'text-green-600'
-            }`}
-          >
-            GH₵{Math.abs(student.total_balance || 0).toFixed(2)}
-          </span>
-        </td>
-
-        {/* Status */}
-        <td className="px-6 py-4 whitespace-nowrap align-middle">
-          <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}`}
-          >
-            {status.charAt(0).toUpperCase() + status.slice(1)}
-          </span>
-        </td>
-
-        {/* View Details Button */}
-        <td className="px-6 py-4 whitespace-nowrap align-middle font-medium">
-          <button
-            onClick={() => onToggleExpansion(student.id)}
-            className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
-          >
-            <span>{isExpanded ? 'Hide Details' : 'View Details'}</span>
-            <svg
-              className={`w-4 h-4 transform transition-transform ${
-                isExpanded ? 'rotate-180' : ''
-              }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </button>
-        </td>
-      </tr>
-
-      
-      {/* Expanded Fee Details */}
-      {isExpanded && (
-        <tr>
-          <td colSpan="8" className="px-6 py-4 bg-gray-50">
-            <div className="space-y-4">
-              <h4 className="font-medium text-gray-900">Fee Item Breakdown</h4>
-              
-              {Object.values(groupedFees).map((group, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
-                    <h5 className="font-medium text-gray-900">
-                      {group.academic_year} - {group.term}
-                    </h5>
-                    <div className="text-sm text-gray-600 flex space-x-4">
-                      <span>Due: GH₵{group.total_due.toFixed(2)}</span>
-                      <span>Paid: GH₵{group.total_paid.toFixed(2)}</span>
-                      <span>Balance: GH₵{group.total_balance.toFixed(2)}</span>
-                    </div>
-                  </div>
-                  <div className="divide-y divide-gray-200">
-                    {group.fees.map((fee) => (
-                      <div key={fee.id} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3">
-                            <span className="text-sm font-medium text-gray-900">
-                              {fee.fee_item?.name || 'Unknown Fee Item'}
-                            </span>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                              fee.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
-                              fee.payment_status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {fee.payment_status}
-                            </span>
-                          </div>
-                          {fee.fee_structure && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              Fee Structure: {fee.fee_structure.name}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right space-y-1">
-                          <div className="text-sm text-gray-900">
-                            Due: GH₵{parseFloat(fee.amount_due || 0).toFixed(2)}
-                          </div>
-                          <div className="text-sm text-green-600">
-                            Paid: GH₵{parseFloat(fee.amount_paid || 0).toFixed(2)}
-                          </div>
-                          <div className={`text-sm font-semibold ${
-                            fee.balance > 0 ? 'text-red-600' : 'text-green-600'
-                          }`}>
-                            Balance: GH₵{Math.abs(parseFloat(fee.balance || 0)).toFixed(2)}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              
-              {student.student_fees?.length === 0 && (
-                <div className="text-center py-4 text-gray-500">
-                  No fee items assigned to this student.
-                </div>
-              )}
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
-  );
+  return (<div className="space-y-2"><h4 className="text-xxs font-semibold text-slate-600">📑 Fee Breakdown</h4>{Object.values(groupedFees).map((group, idx) => (<div key={idx} className="bg-white rounded-lg border p-2"><div className="flex justify-between text-xxs"><span>{group.academic_year} - {group.term}</span><span>Due: {formatMoney(group.total_due)} | Paid: {formatMoney(group.total_paid)}</span></div>{group.fees.map(fee => (<div key={fee.id} className="flex justify-between text-xxs border-t mt-1 pt-1"><span>{fee.fee_item?.name}</span><span className={fee.balance > 0 ? 'text-amber-600' : 'text-emerald-600'}>Bal: {formatMoney(Math.abs(fee.balance))}</span></div>))}</div>))}</div>);
 };
+
+// Inject global animation styles
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes scaleUp { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .animate-fadeInUp { animation: fadeInUp 0.3s ease-out forwards; }
+  .animate-scaleUp { animation: scaleUp 0.2s ease-out forwards; }
+  .animate-fadeIn { animation: fadeIn 0.2s ease-out forwards; }
+  .glass-card { background: rgba(255,255,255,0.6); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.5); }
+  .text-xxs { font-size: 0.65rem; line-height: 1rem; }
+`;
+document.head.appendChild(style);
 
 export default ClassesPage;
