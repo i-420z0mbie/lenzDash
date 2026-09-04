@@ -53,134 +53,182 @@ const Dashboard = () => {
   const revenueChartData = classOverview.map(c => ({ name: c.name, revenue: c.total_paid }));
   const collectionChartData = classOverview.map(c => ({ name: c.name, rate: c.collection_rate || 0 }));
   const paymentStatusData = stats ? [
-    { name: 'Fully Paid', value: stats.fully_paid_count || 0, color: '#10b981' },
-    { name: 'Partial', value: stats.partial_count || 0, color: '#f59e0b' },
-    { name: 'Unpaid', value: stats.unpaid_count || 0, color: '#ef4444' },
+    { name: 'Fully paid', value: stats.fully_paid_count || 0, color: '#047857' },
+    { name: 'Partial', value: stats.partial_count || 0, color: '#d97706' },
+    { name: 'Unpaid', value: stats.unpaid_count || 0, color: '#991b1b' },
   ].filter(d => d.value > 0) : [];
+
+  const totalRevenue = classOverview.reduce((sum, c) => sum + (c.total_paid || 0), 0);
+  const totalOutstanding = classOverview.reduce((sum, c) => sum + (c.total_balance || 0), 0);
+  const totalStudents = classOverview.reduce((sum, c) => sum + (c.total_students || 0), 0);
 
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorRetry error={error} onRetry={fetchDashboardData} />;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 p-4 md:p-5 max-w-[1600px] mx-auto space-y-5">
-      {/* Header */}
-      <div className="relative overflow-hidden rounded-xl bg-white/70 backdrop-blur-sm border border-white/30 shadow-lg p-4 animate-fadeInUp">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-indigo-100/40 to-transparent rounded-full blur-2xl" />
-        <div className="relative flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-base font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">📊 School Intelligence Dashboard</h1>
-            <p className="text-[11px] text-slate-500 mt-0.5">Real‑time financial & student performance analytics</p>
+    <div className="min-h-screen bg-stone-50 ledger-root">
+      <div className="max-w-[1400px] mx-auto px-5 md:px-8 py-8 space-y-6">
+
+        {/* ---------- Statement header ---------- */}
+        <div className="border-b border-stone-300 pb-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="ledger-display text-3xl text-stone-900 tracking-tight">Dashboard</h1>
+              <p className="text-sm text-stone-500 mt-1">A running view of enrollment, collections and what's still outstanding.</p>
+            </div>
+            <button
+              onClick={fetchDashboardData}
+              className="flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-900 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              Refresh
+            </button>
           </div>
-          <button onClick={fetchDashboardData} className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium bg-indigo-600 text-white rounded-lg shadow-md hover:shadow-indigo-200 transition-all hover:-translate-y-0.5">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-            <span>Refresh</span>
-          </button>
+
+          {/* Big total + inline stat strip */}
+          {classOverview.length > 0 && (
+            <div className="mt-6 flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
+              <div>
+                <p className="text-xs text-stone-500">Total collected</p>
+                <p className="ledger-display ledger-mono text-4xl md:text-5xl text-emerald-900 mt-1 tabular-nums">
+                  GH₵{totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center divide-x divide-stone-300">
+                <div className="px-4 first:pl-0">
+                  <p className="ledger-mono text-lg text-stone-800 tabular-nums">{classOverview.length}</p>
+                  <p className="text-xs text-stone-500">Classes</p>
+                </div>
+                <div className="px-4">
+                  <p className="ledger-mono text-lg text-stone-800 tabular-nums">{totalStudents}</p>
+                  <p className="text-xs text-stone-500">Students</p>
+                </div>
+                <div className="px-4">
+                  <p className="ledger-mono text-lg text-amber-800 tabular-nums">GH₵{totalOutstanding.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                  <p className="text-xs text-stone-500">Outstanding</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
 
-      <QuickActions />
-      {stats && <StatsGrid stats={stats} />}
+        <QuickActions />
+        {stats && <StatsGrid stats={stats} />}
 
-      {/* Charts Section – using correct, un‑scaled data */}
-      <div className="grid lg:grid-cols-2 gap-5">
-        {/* Revenue by Class */}
-        <div className="glass-card rounded-xl p-4 transition-all hover:shadow-md">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-semibold text-slate-600">💵 Revenue by Class</h3>
-            <span className="text-[10px] text-slate-400">actual GH₵</span>
+        {/* ---------- Charts: Revenue + Collection rate ---------- */}
+        {classOverview.length > 0 && (
+          <div className="grid lg:grid-cols-2 gap-8 border-b border-stone-200 pb-6">
+            <div>
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className="text-sm font-medium text-stone-700">Revenue by class</h3>
+                <span className="text-xs text-stone-400">GH₵</span>
+              </div>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={revenueChartData} margin={{ top: 6, right: 6, left: -6, bottom: 0 }}>
+                  <CartesianGrid vertical={false} stroke="#e7e5e4" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={{ stroke: '#d6d3d1' }} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: '#78716c' }} tickFormatter={v => `GH₵${v.toLocaleString()}`} axisLine={false} tickLine={false} width={56} />
+                  <Tooltip formatter={v => `GH₵${v.toLocaleString()}`} contentStyle={{ fontSize: '11px', border: '1px solid #e7e5e4', borderRadius: 0, boxShadow: 'none' }} cursor={{ fill: '#f5f5f4' }} />
+                  <Bar dataKey="revenue" fill="#047857" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div>
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className="text-sm font-medium text-stone-700">Collection rate by class</h3>
+                <span className="text-xs text-stone-400">%</span>
+              </div>
+              <ResponsiveContainer width="100%" height={240}>
+                <AreaChart data={collectionChartData} margin={{ top: 6, right: 6, left: -6, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="rateGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#047857" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#047857" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke="#e7e5e4" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={{ stroke: '#d6d3d1' }} tickLine={false} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#78716c' }} unit="%" axisLine={false} tickLine={false} width={34} />
+                  <Tooltip formatter={v => `${v.toFixed(1)}%`} contentStyle={{ fontSize: '11px', border: '1px solid #e7e5e4', borderRadius: 0, boxShadow: 'none' }} />
+                  <Area type="monotone" dataKey="rate" stroke="#047857" fill="url(#rateGrad)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={revenueChartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 9 }} />
-              <YAxis tick={{ fontSize: 9 }} tickFormatter={v => `GH₵${v.toLocaleString()}`} />
-              <Tooltip formatter={v => `GH₵${v.toLocaleString()}`} contentStyle={{ fontSize: 10, borderRadius: 8 }} />
-              <Bar dataKey="revenue" fill="#6366f1" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        )}
 
-        {/* Collection Rate by Class */}
-        <div className="glass-card rounded-xl p-4 transition-all hover:shadow-md">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-semibold text-slate-600">📈 Collection Rate by Class</h3>
-            <span className="text-[10px] text-slate-400">%</span>
+        {/* ---------- Payment status distribution ---------- */}
+        {paymentStatusData.length > 0 && (
+          <div className="border-b border-stone-200 pb-6">
+            <h3 className="text-sm font-medium text-stone-700 mb-3">Payment status distribution</h3>
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie
+                  data={paymentStatusData} dataKey="value" cx="50%" cy="50%"
+                  innerRadius={54} outerRadius={86} paddingAngle={2} stroke="none"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  labelLine={{ stroke: '#a8a29e', strokeWidth: 1 }}
+                >
+                  {paymentStatusData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
+                </Pie>
+                <Tooltip formatter={v => [`${v} students`, 'Count']} contentStyle={{ fontSize: '11px', border: '1px solid #e7e5e4', borderRadius: 0, boxShadow: 'none' }} />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={collectionChartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
-              <defs><linearGradient id="rateGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.7}/><stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/></linearGradient></defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 9 }} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 9 }} unit="%" />
-              <Tooltip formatter={v => `${v.toFixed(1)}%`} contentStyle={{ fontSize: 10 }} />
-              <Area type="monotone" dataKey="rate" stroke="#8b5cf6" fill="url(#rateGrad)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
+        )}
+
+        {/* ---------- Main grid ---------- */}
+        <div className="grid lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-6">
+            <ClassSummary data={classOverview} />
+            {activeFeeStructures.length > 0 && <ActiveFeeStructures structures={activeFeeStructures} />}
+          </div>
+          <div className="space-y-6">
+            {recentPayments.length > 0 && <RecentPayments payments={recentPayments} />}
+            {outstandingStudents.length > 0 && <OutstandingStudents students={outstandingStudents} />}
+          </div>
         </div>
+
+        {(!stats || !classOverview.length) && !recentPayments.length && !outstandingStudents.length && (
+          <div className="text-center py-16 border border-stone-200">
+            <p className="ledger-display text-lg text-stone-700">Nothing to show yet</p>
+            <p className="text-sm text-stone-500 mt-1">Add classes and students to start seeing insights here.</p>
+          </div>
+        )}
       </div>
-
-      {/* Payment Status Distribution (Pie) */}
-      {paymentStatusData.length > 0 && (
-        <div className="glass-card rounded-xl p-4 transition-all hover:shadow-md">
-          <h3 className="text-xs font-semibold text-slate-600 mb-2">🍩 Payment Status Distribution</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie data={paymentStatusData} dataKey="value" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2} label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} labelLine={{ stroke: "#94a3b8", strokeWidth: 1 }}>
-                {paymentStatusData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
-              </Pie>
-              <Tooltip formatter={v => [`${v} students`, "Count"]} contentStyle={{ fontSize: 10 }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Main Grid: Class Summary (uses correct data) + Active Fee Structures (left) / Recent Payments + Outstanding (right) */}
-      <div className="grid lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 space-y-5">
-          <ClassSummary data={classOverview} />  {/* now uses correct per‑class data */}
-          {activeFeeStructures.length > 0 && <ActiveFeeStructures structures={activeFeeStructures} />}
-        </div>
-        <div className="space-y-5">
-          {recentPayments.length > 0 && <RecentPayments payments={recentPayments} />}
-          {outstandingStudents.length > 0 && <OutstandingStudents students={outstandingStudents} />}
-        </div>
-      </div>
-
-      {(!stats || !classOverview.length) && !recentPayments.length && !outstandingStudents.length && (
-        <div className="text-center py-12 glass-card rounded-xl">
-          <p className="text-sm text-slate-500">No data available yet. Add classes and students to see insights.</p>
-        </div>
-      )}
     </div>
   );
 };
 
 const LoadingSpinner = () => (
-  <div className="flex items-center justify-center min-h-[60vh]">
-    <div className="relative">
-      <div className="w-10 h-10 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-      <p className="mt-3 text-[11px] text-slate-400 animate-pulse">Loading intelligence...</p>
+  <div className="flex items-center justify-center min-h-[60vh] bg-stone-50">
+    <div className="text-center">
+      <div className="w-6 h-6 border-2 border-stone-300 border-t-emerald-800 rounded-full animate-spin mx-auto" />
+      <p className="mt-3 text-xs text-stone-400 ledger-mono">Opening the register…</p>
     </div>
   </div>
 );
 
 const ErrorRetry = ({ error, onRetry }) => (
-  <div className="flex items-center justify-center min-h-[60vh]">
-    <div className="glass-card rounded-xl p-6 text-center">
-      <p className="text-rose-500 text-sm mb-3">{error}</p>
-      <button onClick={onRetry} className="px-4 py-1.5 bg-indigo-600 text-white text-xs rounded-lg shadow">Retry</button>
+  <div className="flex items-center justify-center min-h-[60vh] bg-stone-50">
+    <div className="text-center border border-stone-200 px-8 py-8">
+      <p className="text-sm text-red-800 mb-4">{error}</p>
+      <button onClick={onRetry} className="px-4 py-2 bg-stone-900 text-stone-50 text-sm hover:bg-emerald-900 transition-colors">Retry</button>
     </div>
   </div>
 );
 
-// Global animations (injected once)
-if (typeof document !== 'undefined') {
+// Inject fonts + base ledger styling (only once, shared with other ledger pages)
+if (typeof document !== 'undefined' && !document.getElementById('dashboard-ledger-styles')) {
   const style = document.createElement('style');
+  style.id = 'dashboard-ledger-styles';
   style.textContent = `
-    @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-    .animate-fadeInUp{animation:fadeInUp 0.25s ease-out forwards}
-    .glass-card{background:rgba(255,255,255,0.6);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.5)}
-    .text-xxs{font-size:0.65rem;line-height:1rem}
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+    .ledger-root { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; animation: ledgerFadeIn 0.35s ease-out; }
+    .ledger-display { font-family: 'Fraunces', serif; font-weight: 500; }
+    .ledger-mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+    @keyframes ledgerFadeIn { from { opacity: 0; } to { opacity: 1; } }
   `;
   document.head.appendChild(style);
 }

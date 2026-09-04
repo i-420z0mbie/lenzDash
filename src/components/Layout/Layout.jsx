@@ -10,27 +10,26 @@ const Layout = ({ children }) => {
       const style = document.createElement('style');
       style.id = 'layout-global-styles';
       style.textContent = `
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(15px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-        @keyframes slideInRight { from { opacity: 0; transform: translateX(250px); } to { opacity: 1; transform: translateX(0); } }
-        @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        @keyframes slideInRight { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
         .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
-        .animate-fadeInUp { animation: fadeInUp 0.25s ease-out; }
-        .animate-slideUp { animation: slideUp 0.2s cubic-bezier(0.2, 0.9, 0.4, 1.1); }
-        .animate-slideInRight { animation: slideInRight 0.25s ease-out; }
-        .glass-card { background: rgba(255,255,255,0.6); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.5); }
+        .animate-slideInRight { animation: slideInRight 0.2s ease-out; }
+        .ledger-display { font-family: 'Fraunces', serif; font-weight: 500; }
+        .ledger-mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+        /* Bridge for components not yet redesigned: flat card instead of blurred glass */
+        .glass-card { background: #ffffff; border: 1px solid #e7e5e4; }
       `;
       document.head.appendChild(style);
     }
   }, []);
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30">
+    <div className="flex h-screen bg-stone-50" style={{ fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif" }}>
       <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header setSidebarOpen={setSidebarOpen} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-5">
+        <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto">
             {children}
           </div>
