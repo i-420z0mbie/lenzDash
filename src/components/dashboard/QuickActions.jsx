@@ -3,18 +3,20 @@ import ReactDOM from 'react-dom';
 import api from '../../api';
 
 const Modal = ({ title, children, onClose }) => ReactDOM.createPortal(
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
-    <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-    <div className="relative bg-white rounded-xl w-full max-w-md p-5 shadow-2xl">
-      <div className="flex justify-between items-center mb-3">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-stone-900/30" onClick={onClose} />
+    <div className="relative bg-stone-50 border border-stone-300 w-full max-w-md p-6 shadow-sm">
+      <div className="flex justify-between items-baseline mb-4 border-b border-stone-200 pb-3">
+        <h3 className="ledger-display text-lg text-stone-900">{title}</h3>
+        <button onClick={onClose} className="text-stone-400 hover:text-stone-900 transition-colors text-sm">✕</button>
       </div>
       {children}
     </div>
   </div>,
   document.body
 );
+
+const inputCls = "w-full px-3 py-2 text-sm bg-white border border-stone-300 focus:border-emerald-800 focus:outline-none placeholder:text-stone-400";
 
 const QuickActions = () => {
   const [activeModal, setActiveModal] = useState(null);
@@ -120,9 +122,9 @@ const QuickActions = () => {
       if (err.response && err.response.status === 400) {
         const data = err.response.data;
         const msg = Object.values(data).flat().join('; ');
-        setError(`❌ ${msg || 'Please check your input.'}`);
+        setError(msg || 'Please check your input.');
       } else {
-        setError('❌ An unexpected error occurred. Please try again.');
+        setError('An unexpected error occurred. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -151,20 +153,20 @@ const QuickActions = () => {
           const msg = data.non_field_errors[0];
           if (msg.toLowerCase().includes('already exists')) {
             setError(
-              `⚠️ ${msg}. You can add fee items to the existing structure using the "Add Fee Item" action below.`
+              `${msg}. You can add fee items to the existing structure using "Add Fee Item" instead.`
             );
           } else {
-            setError(`❌ ${msg}`);
+            setError(msg);
           }
         } else {
           // Field-specific errors
           const fieldErrors = Object.keys(data).map(
             field => `${field}: ${data[field].join(', ')}`
           ).join('; ');
-          setError(`❌ ${fieldErrors || 'Please check your input.'}`);
+          setError(fieldErrors || 'Please check your input.');
         }
       } else {
-        setError('❌ An unexpected error occurred. Please try again.');
+        setError('An unexpected error occurred. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -186,9 +188,9 @@ const QuickActions = () => {
       if (err.response && err.response.status === 400) {
         const data = err.response.data;
         const msg = Object.values(data).flat().join('; ');
-        setError(`❌ ${msg || 'Please check your input.'}`);
+        setError(msg || 'Please check your input.');
       } else {
-        setError('❌ An unexpected error occurred. Please try again.');
+        setError('An unexpected error occurred. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -210,9 +212,9 @@ const QuickActions = () => {
       if (err.response && err.response.status === 400) {
         const data = err.response.data;
         const msg = Object.values(data).flat().join('; ');
-        setError(`❌ ${msg || 'Please check your input.'}`);
+        setError(msg || 'Please check your input.');
       } else {
-        setError('❌ An unexpected error occurred. Please try again.');
+        setError('An unexpected error occurred. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -225,114 +227,111 @@ const QuickActions = () => {
     setError('');
   };
 
+  const actions = [
+    {
+      key: 'add-student',
+      label: 'Add student',
+      icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+    },
+    {
+      key: 'fee-structure',
+      label: 'Fee structure',
+      icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    },
+    {
+      key: 'add-fee-item',
+      label: 'Add fee item',
+      icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+    },
+    {
+      key: 'add-class',
+      label: 'Add class',
+      icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+    }
+  ];
+
   return (
-    <div className="glass-card rounded-xl p-4">
-      <h2 className="text-xs font-semibold text-slate-600 mb-3">⚡ Quick Actions</h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <button
-          onClick={() => setActiveModal('add-student')}
-          className="flex flex-col items-center p-2 border border-dashed border-slate-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition"
-        >
-          <svg className="w-5 h-5 text-slate-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="text-[10px] font-medium">Add Student</span>
-        </button>
-        <button
-          onClick={() => setActiveModal('fee-structure')}
-          className="flex flex-col items-center p-2 border border-dashed border-slate-300 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition"
-        >
-          <svg className="w-5 h-5 text-slate-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <span className="text-[10px] font-medium">Fee Structure</span>
-        </button>
-        <button
-          onClick={() => setActiveModal('add-fee-item')}
-          className="flex flex-col items-center p-2 border border-dashed border-slate-300 rounded-lg hover:border-green-400 hover:bg-green-50 transition"
-        >
-          <svg className="w-5 h-5 text-slate-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          <span className="text-[10px] font-medium">Add Fee Item</span>
-        </button>
-        <button
-          onClick={() => setActiveModal('add-class')}
-          className="flex flex-col items-center p-2 border border-dashed border-slate-300 rounded-lg hover:border-orange-400 hover:bg-orange-50 transition"
-        >
-          <svg className="w-5 h-5 text-slate-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          <span className="text-[10px] font-medium">Add Class</span>
-        </button>
+    <div className="border-b border-stone-200 pb-6">
+      <h3 className="text-sm font-medium text-stone-700 mb-3">Quick actions</h3>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {actions.map(a => (
+          <button
+            key={a.key}
+            onClick={() => setActiveModal(a.key)}
+            className="flex flex-col items-center gap-1.5 py-4 border border-stone-200 text-stone-600 hover:border-emerald-800 hover:text-emerald-900 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">{a.icon}</svg>
+            <span className="text-xs">{a.label}</span>
+          </button>
+        ))}
       </div>
 
       {/* ---------- MODALS ---------- */}
 
       {/* Add Student Modal */}
       {activeModal === 'add-student' && (
-        <Modal title="Add New Student" onClose={() => { setActiveModal(null); setError(''); }}>
+        <Modal title="Add new student" onClose={() => { setActiveModal(null); setError(''); }}>
           <form onSubmit={handleAddStudent} className="space-y-3">
             <input
               required
-              placeholder="First Name"
+              placeholder="First name"
               value={studentForm.first_name}
               onChange={e => setStudentForm(p => ({ ...p, first_name: e.target.value }))}
-              className="w-full p-2 text-xs border rounded-lg"
+              className={inputCls}
             />
             <input
               required
-              placeholder="Last Name"
+              placeholder="Last name"
               value={studentForm.last_name}
               onChange={e => setStudentForm(p => ({ ...p, last_name: e.target.value }))}
-              className="w-full p-2 text-xs border rounded-lg"
+              className={inputCls}
             />
             <input
-              placeholder="Other Names"
+              placeholder="Other names"
               value={studentForm.other_names}
               onChange={e => setStudentForm(p => ({ ...p, other_names: e.target.value }))}
-              className="w-full p-2 text-xs border rounded-lg"
+              className={inputCls}
             />
             <select
               required
               value={studentForm.school_class}
               onChange={e => setStudentForm(p => ({ ...p, school_class: e.target.value }))}
-              className="w-full p-2 text-xs border rounded-lg"
+              className={inputCls}
             >
-              <option value="">Select Class</option>
+              <option value="">Select class</option>
               {schoolClasses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <input
-              placeholder="Parent Name"
+              placeholder="Parent name"
               value={studentForm.parent_name}
               onChange={e => setStudentForm(p => ({ ...p, parent_name: e.target.value }))}
-              className="w-full p-2 text-xs border rounded-lg"
+              className={inputCls}
             />
             <input
-              placeholder="Parent Contact"
+              placeholder="Parent contact"
               value={studentForm.parent_contact}
               onChange={e => setStudentForm(p => ({ ...p, parent_contact: e.target.value }))}
-              className="w-full p-2 text-xs border rounded-lg"
+              className={inputCls}
             />
             {error && (
-              <div className="bg-rose-50 border border-rose-200 rounded-lg p-2 text-xs text-rose-700">
+              <div className="border border-red-800/30 bg-red-50 p-2.5 text-xs text-red-800">
                 {error}
               </div>
             )}
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => { setActiveModal(null); setError(''); }}
-                className="flex-1 py-1.5 text-xs bg-slate-100 rounded-lg"
+                className="flex-1 py-2 text-xs border border-stone-300 text-stone-600 hover:text-stone-900 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 py-1.5 text-xs bg-blue-600 text-white rounded-lg"
+                className="flex-1 py-2 text-xs bg-stone-900 text-stone-50 hover:bg-emerald-900 transition-colors disabled:opacity-60"
               >
-                {loading ? 'Adding...' : 'Add'}
+                {loading ? 'Adding…' : 'Add student'}
               </button>
             </div>
           </form>
@@ -341,73 +340,75 @@ const QuickActions = () => {
 
       {/* Fee Structure Modal */}
       {activeModal === 'fee-structure' && (
-        <Modal title="Create Fee Structure" onClose={() => { setActiveModal(null); setError(''); }}>
+        <Modal title="Create fee structure" onClose={() => { setActiveModal(null); setError(''); }}>
           <form onSubmit={handleCreateFeeStructure} className="space-y-3">
             <select
               required
               value={feeStructureForm.school_class}
               onChange={e => setFeeStructureForm(p => ({ ...p, school_class: e.target.value }))}
-              className="w-full p-2 text-xs border rounded-lg"
+              className={inputCls}
             >
-              <option value="">Select Class</option>
+              <option value="">Select class</option>
               {schoolClasses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <input
               type="text"
-              placeholder="Academic Year"
+              placeholder="Academic year"
               value={feeStructureForm.academic_year}
               onChange={e => setFeeStructureForm(p => ({ ...p, academic_year: e.target.value }))}
-              className="w-full p-2 text-xs border rounded-lg"
+              className={inputCls}
             />
             <select
               value={feeStructureForm.term}
               onChange={e => setFeeStructureForm(p => ({ ...p, term: e.target.value }))}
-              className="w-full p-2 text-xs border rounded-lg"
+              className={inputCls}
             >
               <option>Term 1</option>
               <option>Term 2</option>
               <option>Term 3</option>
             </select>
             <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] font-medium">Fee Items</span>
-                <button type="button" onClick={addItemField} className="text-[10px] text-purple-600">
-                  + Add
+              <div className="flex justify-between items-baseline mb-1.5">
+                <span className="text-xs text-stone-500">Fee items</span>
+                <button type="button" onClick={addItemField} className="text-xs text-emerald-900 hover:text-emerald-700">
+                  + Add item
                 </button>
               </div>
-              {feeStructureForm.items.map((item, idx) => (
-                <div key={idx} className="flex gap-1 mt-1">
-                  <input
-                    placeholder="Name"
-                    value={item.name}
-                    onChange={e => updateItem(idx, 'name', e.target.value)}
-                    className="flex-1 p-1.5 text-xs border rounded"
-                  />
-                  <input
-                    placeholder="Amount"
-                    type="number"
-                    value={item.amount}
-                    onChange={e => updateItem(idx, 'amount', e.target.value)}
-                    className="w-20 p-1.5 text-xs border rounded"
-                  />
-                  {feeStructureForm.items.length > 1 && (
-                    <button type="button" onClick={() => removeItemField(idx)} className="text-rose-500 text-xs">
-                      ✕
-                    </button>
-                  )}
-                </div>
-              ))}
+              <div className="space-y-1.5">
+                {feeStructureForm.items.map((item, idx) => (
+                  <div key={idx} className="flex gap-1.5">
+                    <input
+                      placeholder="Name"
+                      value={item.name}
+                      onChange={e => updateItem(idx, 'name', e.target.value)}
+                      className={`flex-1 ${inputCls} py-1.5`}
+                    />
+                    <input
+                      placeholder="Amount"
+                      type="number"
+                      value={item.amount}
+                      onChange={e => updateItem(idx, 'amount', e.target.value)}
+                      className={`w-24 ledger-mono ${inputCls} py-1.5`}
+                    />
+                    {feeStructureForm.items.length > 1 && (
+                      <button type="button" onClick={() => removeItemField(idx)} className="text-stone-400 hover:text-red-800 text-xs px-1">
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Error display with suggestion */}
             {error && (
-              <div className="bg-rose-50 border border-rose-200 rounded-lg p-2 text-xs text-rose-700">
+              <div className="border border-amber-800/30 bg-amber-50 p-2.5 text-xs text-amber-900">
                 {error}
                 {error.toLowerCase().includes('already exists') && (
                   <button
                     type="button"
                     onClick={switchToAddFeeItem}
-                    className="ml-2 text-rose-800 font-semibold underline hover:no-underline"
+                    className="ml-2 font-medium underline hover:no-underline"
                   >
                     Go to Add Fee Item
                   </button>
@@ -415,20 +416,20 @@ const QuickActions = () => {
               </div>
             )}
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => { setActiveModal(null); setError(''); }}
-                className="flex-1 py-1.5 text-xs bg-slate-100 rounded-lg"
+                className="flex-1 py-2 text-xs border border-stone-300 text-stone-600 hover:text-stone-900 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 py-1.5 text-xs bg-purple-600 text-white rounded-lg"
+                className="flex-1 py-2 text-xs bg-stone-900 text-stone-50 hover:bg-emerald-900 transition-colors disabled:opacity-60"
               >
-                {loading ? 'Creating...' : 'Create'}
+                {loading ? 'Creating…' : 'Create structure'}
               </button>
             </div>
           </form>
@@ -437,27 +438,27 @@ const QuickActions = () => {
 
       {/* Add Fee Item Modal */}
       {activeModal === 'add-fee-item' && (
-        <Modal title="Add Fee Item" onClose={() => { setActiveModal(null); setError(''); }}>
+        <Modal title="Add fee item" onClose={() => { setActiveModal(null); setError(''); }}>
           <form onSubmit={handleAddFeeItem} className="space-y-3">
             <select
               required
               value={feeItemForm.fee_structure}
               onChange={e => setFeeItemForm(p => ({ ...p, fee_structure: e.target.value }))}
-              className="w-full p-2 text-xs border rounded-lg"
+              className={inputCls}
             >
-              <option value="">Select Fee Structure</option>
+              <option value="">Select fee structure</option>
               {feeStructures.map(fs => (
                 <option key={fs.id} value={fs.id}>
-                  {fs.school_class?.name} - {fs.academic_year} {fs.term}
+                  {fs.school_class?.name} — {fs.academic_year} {fs.term}
                 </option>
               ))}
             </select>
             <input
               required
-              placeholder="Item Name"
+              placeholder="Item name"
               value={feeItemForm.name}
               onChange={e => setFeeItemForm(p => ({ ...p, name: e.target.value }))}
-              className="w-full p-2 text-xs border rounded-lg"
+              className={inputCls}
             />
             <input
               required
@@ -466,27 +467,27 @@ const QuickActions = () => {
               placeholder="Amount"
               value={feeItemForm.amount}
               onChange={e => setFeeItemForm(p => ({ ...p, amount: e.target.value }))}
-              className="w-full p-2 text-xs border rounded-lg"
+              className={`ledger-mono ${inputCls}`}
             />
             {error && (
-              <div className="bg-rose-50 border border-rose-200 rounded-lg p-2 text-xs text-rose-700">
+              <div className="border border-red-800/30 bg-red-50 p-2.5 text-xs text-red-800">
                 {error}
               </div>
             )}
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => { setActiveModal(null); setError(''); }}
-                className="flex-1 py-1.5 text-xs bg-slate-100 rounded-lg"
+                className="flex-1 py-2 text-xs border border-stone-300 text-stone-600 hover:text-stone-900 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 py-1.5 text-xs bg-green-600 text-white rounded-lg"
+                className="flex-1 py-2 text-xs bg-stone-900 text-stone-50 hover:bg-emerald-900 transition-colors disabled:opacity-60"
               >
-                {loading ? 'Adding...' : 'Add'}
+                {loading ? 'Adding…' : 'Add item'}
               </button>
             </div>
           </form>
@@ -495,39 +496,39 @@ const QuickActions = () => {
 
       {/* Add Class Modal */}
       {activeModal === 'add-class' && (
-        <Modal title="Add New Class" onClose={() => { setActiveModal(null); setError(''); }}>
+        <Modal title="Add new class" onClose={() => { setActiveModal(null); setError(''); }}>
           <form onSubmit={handleAddClass} className="space-y-3">
             <input
               required
               placeholder="Class name (e.g., Primary 1)"
               value={classForm.name}
               onChange={e => setClassForm({ name: e.target.value })}
-              className="w-full p-2 text-xs border rounded-lg"
+              className={inputCls}
             />
-            <div className="bg-amber-50 rounded-lg p-2">
-              <p className="text-[10px] text-amber-800">
-                The class will be created and can be used to assign students and fee structures.
+            <div className="border border-amber-800/30 bg-amber-50 p-2.5">
+              <p className="text-xs text-amber-900">
+                The class will be created and can then be used to assign students and fee structures.
               </p>
             </div>
             {error && (
-              <div className="bg-rose-50 border border-rose-200 rounded-lg p-2 text-xs text-rose-700">
+              <div className="border border-red-800/30 bg-red-50 p-2.5 text-xs text-red-800">
                 {error}
               </div>
             )}
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => { setActiveModal(null); setError(''); }}
-                className="flex-1 py-1.5 text-xs bg-slate-100 rounded-lg"
+                className="flex-1 py-2 text-xs border border-stone-300 text-stone-600 hover:text-stone-900 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 py-1.5 text-xs bg-orange-600 text-white rounded-lg"
+                className="flex-1 py-2 text-xs bg-stone-900 text-stone-50 hover:bg-emerald-900 transition-colors disabled:opacity-60"
               >
-                {loading ? 'Adding...' : 'Add Class'}
+                {loading ? 'Adding…' : 'Add class'}
               </button>
             </div>
           </form>
